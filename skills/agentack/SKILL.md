@@ -32,7 +32,8 @@ Steps 2–4 are needed once per session; on later calls in the same session go s
 
 1. **Subcommands.** `/agentack setup | init | verify | roster | limits | doctor | resume` → do
    that (§1, §1b, `$A verify`, `$A roster --md`, `$A limits`, `$A doctor --ping`, §8) and stop
-   unless a task follows.
+   unless a task follows. A request to change who does what ("put scout on Kiro", "use Codex
+   for review") is not a task: handle it with "Changing the roster" in §1 and stop.
 2. **Roster.** Run `$A roster`. Exit code 3 ("not set up") → do §1 first. If it says
    `"verified": false`, run `$A verify` now, without asking, and mention what it dropped.
    If `next_steps` has `action` items, tell the user each one with its fix in a line, then go on.
@@ -87,8 +88,10 @@ reported, not asked.
    `$A hook install` only if the user chose it.
 
 4. **Verify.** `$A verify` sends a one-word prompt to every model in the roster (a few tokens
-   each), drops models this account does not have, sets aside providers that do not answer, and
-   returns `summary`, the roster, `notes` and `next_steps`. This is the roster that counts.
+   each), drops models this account does not have (`removed`), tests again the ones that were
+   dropped earlier and brings back those that answer now (`restored`), sets aside providers that
+   do not answer, and returns `summary`, the roster, `notes` and `next_steps`. This is the roster
+   that counts.
 
 5. **Guide.** Go through `next_steps` with the user, most important first:
    - `action` items: say what is wrong in plain words in the user's language, give the `fix`
@@ -106,11 +109,35 @@ reported, not asked.
    independent), who decides (and whether there is a second opinion); fallback on or off and for
    whom usage is measured; what was dropped and why (`notes`); any role that runs on a weak fit
    and why; what is left to fix. Mention that `/agentack roster` shows the fit score of every
-   role and `references/strengths.md` the evidence behind it. End with the
+   role and `references/strengths.md` the evidence behind it. **Always say that this roster is a
+   starting point they can change at any time by asking in plain words**, with one example that
+   fits their providers (e.g. "/agentack put the mechanical work on Kiro"). End with the
    shortcuts: `/agentack <task>` · `setup` · `verify` · `roster` · `limits` · `doctor` · `resume`.
    Then carry on with the task if one was given. Do not repeat setup on later calls.
 
 Details on tiers, providers and their limits: `references/providers.md`.
+
+### Changing the roster (any time)
+
+The user changes who does what by asking in plain words: "put the mechanical work on Kiro",
+"let Codex review", "build with <model> on Antigravity", "drop Cursor". Never send them to a
+config file and never ask them for flags: translate the request, apply it, show
+`$A roster --md` and say in one line what changed.
+
+| The user wants | Command |
+|---|---|
+| a role on another provider | `$A setup --role scout=kiro,claude`. The providers are tried in that order and one left out is not used for the role, so keep the others behind it as fallbacks unless the user wants it exclusive |
+| a tier or a kind of work moved ("mechanical", "S1", "the builders") | the same, one `--role` per role of that tier, in one call: S1 mechanical = `scout`, `contract-guard` · S2 build = `backend`, `frontend`, `qa` · S3 plan and review = `architect`, `backend-architect`, `designer`, `reviewer` · S4 = `decider` |
+| another model for a tier of a provider | `$A setup --model agy:S2=<model>[@effort]`, then `$A verify` |
+| a provider added or removed, or a new priority order | `$A setup --providers a,b,c` (role chains set by hand are cleared), then `$A verify` |
+| a provider rated differently for a kind of work | `$A setup --rate agy:backend=3` |
+| fallback, second opinion or native subagents on or off | `$A setup --fallback on\|off` · `--second-opinion on\|off` · `--native on\|off` |
+| the defaults back, or a roster that looks out of date | `$A setup --providers <the same providers> --reset`, then `$A verify` |
+| the models tested again (new plan, a model that was missing) | `$A verify` |
+
+Do what was asked, then warn in one line when the result has a cost: a gate role (`reviewer`,
+`architect`, `decider`) on an Auto model, a role on a provider rated weak at it (`fit` ≤ 2), or
+a reviewer on the same vendor as the builders.
 
 ## 1b. Init (`/agentack init`, or the first task in a project)
 

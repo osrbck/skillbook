@@ -97,6 +97,20 @@ ne bulduğunu raporlar.
 
 Conductor sadece sen istersen commit atar ya da PR açar.
 
+**Kadroyu değiştirmek.** Setup'ın verdiği kadro bir başlangıçtır. Değişikliği düz cümleyle iste;
+conductor uygular ve yeni kadroyu gösterir:
+
+```
+/agentack mekanik işleri Kiro'ya ver
+/agentack review'u Codex yapsın
+/agentack varsayılan kadroya dön
+```
+
+Arkasında elle de çalıştırabileceğin `setup` bayrakları var (`--role scout=kiro,claude`,
+`--model agy:S2=<model>`, `--rate agy:backend=3`, `--reset`); bkz.
+[references/providers.md](references/providers.md). `/agentack verify` her modeli yeniden dener,
+daha önce düşürülenler dahil; yeni planla gelen bir model böylece kadroya geri döner.
+
 ## Projen
 
 `init` bulduklarını proje kökündeki `.agentack.json` dosyasına yazar (commit'lenebilir) ve birkaç
@@ -207,6 +221,7 @@ reddederse ya da çalışma sırasında reddedilirse) atlanır ve hatırlanır.
 - Çalıştırmalar, kayıtlar ve brief'ler `<proje>/.agentack/` altında durur (git'e girmez).
 - Yardımcı script saf Python'dır, bağımlılığı yoktur. Sadece bilgisayarındaki ajan CLI'larıyla konuşur.
 - `.agentack.json` ile bir proje sağlayıcıları da kısıtlayabilir: `{"allowed_providers": ["claude"]}`.
+  Bilgisayarınla ilgili başka hiçbir şeyi değiştiremez: içindeki diğer ayarlar yok sayılır.
 
 Contract'ı olan her projede contract önce gelir: kodu değil önce contract'ı değiştirirsin, üretilen
 kod elle düzenlenmez, kırıcı değişiklik yeni sürüm ve senin onayını ister. Bkz.

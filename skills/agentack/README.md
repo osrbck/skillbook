@@ -100,6 +100,20 @@ found before it starts.
 
 The conductor commits or opens a PR only when you ask.
 
+**Changing the roster.** The roster that setup gives you is a starting point. Ask for a change
+in plain words and the conductor applies it and shows the new roster:
+
+```
+/agentack put the mechanical work on Kiro
+/agentack let Codex review
+/agentack go back to the default roster
+```
+
+Behind that are `setup` flags you can also run by hand (`--role scout=kiro,claude`,
+`--model agy:S2=<model>`, `--rate agy:backend=3`, `--reset`); see
+[references/providers.md](references/providers.md). `/agentack verify` tests every model again,
+including the ones that were dropped earlier, so a model you gained with a new plan comes back.
+
 ## Your project
 
 `init` writes what it finds to `.agentack.json` at the project root (safe to commit) and reports
@@ -208,6 +222,7 @@ the conductor moves it up a path. Details: [`sizing.md`](skills/agentack/referen
 - Runs, logs and briefs live in `<project>/.agentack/` (git-ignored automatically).
 - The helper is plain Python with no dependencies. It talks only to the agent CLIs on your machine.
 - `.agentack.json` also lets a project restrict providers: `{"allowed_providers": ["claude"]}`.
+  It cannot change anything else about your machine: other settings in it are ignored.
 
 Contracts come first wherever a project has them: the contract changes before the code, generated
 code is never edited, and breaking changes need a new version and your approval. See
