@@ -2,7 +2,7 @@
 
 **A conductor-led, multi-provider agent workflow for full stack projects, in any language and architecture.**
 
-Call `/agentack` in Claude Code, Codex or Antigravity and your session becomes a *conductor*: it measures the
+Call `/agentack` in Claude Code, Codex, Antigravity or Kiro and your session becomes a *conductor*: it measures the
 task, picks the smallest crew that can finish it correctly, and routes each role to the right
 model on the agent CLIs you already use: Claude Code, Codex, Antigravity, Cursor, Kiro.
 
@@ -58,7 +58,7 @@ the project instead of the other way round.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
-~/skillbook/install.sh agentack --all   # Claude Code, Codex and Antigravity; or one of: (no flag) --codex --agy
+~/skillbook/install.sh agentack --all   # Claude Code, Codex, Antigravity and Kiro; or one of: (no flag) --codex --agy --kiro
 ```
 
 Restart your agent, then:
@@ -207,7 +207,7 @@ the conductor moves it up a path. Details: [`sizing.md`](skills/agentack/referen
 ## How it runs
 
 ```
-/agentack → conductor (your Claude Code, Codex or Antigravity session)
+/agentack → conductor (your Claude Code, Codex, Antigravity or Kiro session)
                │  project profile → measure → size → path → gates
                ▼
             agentack.py dispatch ── role → unit → tier → provider + model
@@ -230,9 +230,9 @@ code is never edited, and breaking changes need a new version and your approval.
 
 ## Requirements
 
-- **Conductor:** Claude Code, Codex or Antigravity (app, IDE or CLI), on a plan-and-review class
-  model (Opus, GPT-6 Astra, Gemini 4 Argon or above). On a smaller model Agentack warns and asks
-  before continuing. Kiro is planned as a host; today it works as a provider.
+- **Conductor:** Claude Code, Codex, Antigravity (app, IDE or CLI) or Kiro (IDE or CLI), on a
+  plan-and-review class model (Opus, GPT-6 Astra, Gemini 4 Argon or above; in Kiro a named
+  Opus-class model, not Auto). On a smaller model Agentack warns and asks before continuing.
 - **Providers:** at least one of Claude Code, Codex, Antigravity (`agy`), Cursor CLI, Kiro CLI.
 - Python 3.8+ and git, on macOS, Linux or WSL. Your project in a git repository.
 
@@ -267,7 +267,7 @@ Agentack lives in [skillbook](../../README.md):
 
 ```
 skillbook/
-├── install.sh                # ./install.sh agentack [--codex|--agy|--all]
+├── install.sh                # ./install.sh agentack [--codex|--agy|--kiro|--all]
 ├── skills/agentack/
 │   ├── SKILL.md              # the conductor
 │   ├── roles/                # 10 provider- and stack-neutral role prompts

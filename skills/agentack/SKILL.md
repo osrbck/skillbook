@@ -37,8 +37,8 @@ Steps 2–4 are needed once per session; on later calls in the same session go s
 2. **Roster.** Run `$A roster`. Exit code 3 ("not set up") → do §1 first. If it says
    `"verified": false`, run `$A verify` now, without asking, and mention what it dropped.
    If `next_steps` has `action` items, tell the user each one with its fix in a line, then go on.
-3. **Conductor check.** Run `$A check-conductor --host <claude|codex|agy> --model <your model id>`
-   (`agy` for every Antigravity surface: app, IDE and CLI).
+3. **Conductor check.** Run `$A check-conductor --host <claude|codex|agy|kiro> --model <your model id>`
+   (`agy` for every Antigravity surface: app, IDE and CLI; `kiro` for the Kiro IDE and CLI).
    If `ok` is false, show the user the `message`, and ask once per session whether to continue
    anyway or switch model first. The conductor carries the whole workflow in its context, so a
    plan-and-review class model (S3 or above) is recommended.
@@ -52,7 +52,7 @@ Steps 2–4 are needed once per session; on later calls in the same session go s
 
 The helper keeps its runtime files in `<project>/.agentack/` and git-ignores that folder itself.
 
-**Hosts.** This skill runs the same way in Claude Code, Codex and Antigravity. Always pass your own
+**Hosts.** This skill runs the same way in Claude Code, Codex, Antigravity and Kiro. Always pass your own
 host as `--host`. Run helper commands with your host's terminal tool, from the project root. Only
 Claude Code gets `via: native` workers; everywhere else every worker is a detached CLI run that
 you collect with `wait` and `result`. If your terminal tool cuts long commands short, call `wait`
@@ -234,7 +234,7 @@ to put in it (`put_in`):
   worker that needs more detail to expand the brief into explicit steps first.
 
 ```bash
-$A dispatch --role <backend|frontend|be-go|fe-angular|reviewer|…> --brief <brief path> --host <claude|codex|agy> [--unit NAME] [--cwd PATH] [--avoid PROVIDERS] [--mode read|write]
+$A dispatch --role <backend|frontend|be-go|fe-angular|reviewer|…> --brief <brief path> --host <claude|codex|agy|kiro> [--unit NAME] [--cwd PATH] [--avoid PROVIDERS] [--mode read|write]
 ```
 
 - **Roles and units.** `--role backend` / `frontend` picks the project's only unit of that layer;

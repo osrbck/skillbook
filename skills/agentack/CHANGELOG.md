@@ -12,6 +12,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
   (`restored`); `setup` resolves them again for a provider it keeps
 
 ### Added
+- Kiro (IDE and CLI) can host the conductor, like Claude Code, Codex and Antigravity: `--host kiro`
+  for `check-conductor` and `dispatch`, workers as CLI runs. The session should be on a named
+  Opus-class model; Auto is not accepted by the conductor check because it hides the model
 - Changing the roster in plain words ("put the mechanical work on Kiro"): the skill tells the
   conductor how to translate such a request into `setup` flags, the setup summary and
   `roster --md` say that the roster can be changed, and the README shows how

@@ -2,7 +2,7 @@
 
 **Her dilde ve her mimaride full stack projeler için, conductor yönetiminde çok sağlayıcılı ajan workflow'u.**
 
-Claude Code, Codex ya da Antigravity'de `/agentack` yazınca oturumun bir *conductor*'a dönüşür: işi ölçer, işi
+Claude Code, Codex, Antigravity ya da Kiro'da `/agentack` yazınca oturumun bir *conductor*'a dönüşür: işi ölçer, işi
 doğru bitirebilecek en küçük ekibi seçer ve her rolü zaten kullandığın ajan CLI'larındaki doğru
 modele yönlendirir: Claude Code, Codex, Antigravity, Cursor, Kiro.
 
@@ -55,7 +55,7 @@ mikroservis, full stack framework ya da klasik monolit. Ekip projeye uyar, proje
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
-~/skillbook/install.sh agentack --all   # Claude Code, Codex ve Antigravity; tek biri için: (bayraksız) --codex --agy
+~/skillbook/install.sh agentack --all   # Claude Code, Codex, Antigravity ve Kiro; tek biri için: (bayraksız) --codex --agy --kiro
 ```
 
 Ajanını yeniden başlat, sonra:
@@ -206,7 +206,7 @@ reddederse ya da çalışma sırasında reddedilirse) atlanır ve hatırlanır.
 ## Nasıl çalışır
 
 ```
-/agentack → conductor (Claude Code, Codex ya da Antigravity oturumun)
+/agentack → conductor (Claude Code, Codex, Antigravity ya da Kiro oturumun)
                │  proje profili → ölç → boyutlandır → yol → kapılar
                ▼
             agentack.py dispatch ── rol → birim → seviye → sağlayıcı + model
@@ -229,10 +229,10 @@ kod elle düzenlenmez, kırıcı değişiklik yeni sürüm ve senin onayını is
 
 ## Gereksinimler
 
-- **Conductor:** Claude Code, Codex ya da Antigravity (uygulama, IDE ya da CLI), plan ve kontrol
-  sınıfı bir modelde (Opus, GPT-6 Astra, Gemini 4 Argon ya da üstü). Daha küçük bir modelde
-  Agentack uyarır ve devam etmeden önce onay ister. Kiro'nun conductor olması planlanıyor;
-  şimdilik sağlayıcı olarak çalışıyor.
+- **Conductor:** Claude Code, Codex, Antigravity (uygulama, IDE ya da CLI) ya da Kiro (IDE ya da
+  CLI), plan ve kontrol sınıfı bir modelde (Opus, GPT-6 Astra, Gemini 4 Argon ya da üstü; Kiro'da
+  Auto değil, adı belli Opus sınıfı bir model). Daha küçük bir modelde Agentack uyarır ve devam
+  etmeden önce onay ister.
 - **Sağlayıcılar:** Claude Code, Codex, Antigravity (`agy`), Cursor CLI, Kiro CLI'dan en az biri.
 - Python 3.8+ ve git; macOS, Linux ya da WSL. Projen bir git reposu olmalı.
 

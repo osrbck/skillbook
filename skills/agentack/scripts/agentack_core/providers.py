@@ -247,6 +247,7 @@ class Provider:
     tiers: Dict[str, Optional[dict]] = {}
     match: Dict[str, Tuple[str, ...]] = {}   # tier -> keywords to pick a slug from a model listing
     conductor_keywords: Tuple[str, ...] = ()
+    conductor_hint = ""            # what to recommend when the provider has no S3/S4 model of its own
     read_only_enforced = False     # the CLI itself can be prevented from editing
     styles: Dict[str, str] = {}    # tier -> briefing style, where it differs from TIER_STYLE
     ratings: Dict[str, int] = {}   # skill -> 1..5 (see SKILLS); missing = 3, not yet rated
@@ -631,6 +632,11 @@ class Cursor(Provider):
 class Kiro(Provider):
     name, label, vendor = "kiro", "Kiro", "kiro"
     bins = ("kiro-cli",)
+    conductor = True               # as a skill in the Kiro IDE or CLI
+    # Kiro offers other vendors' models, so a conducting session is judged by the model's class
+    # and never by "auto", which hides which model is behind it.
+    conductor_keywords = ("opus", "fable", "mythos", "astra", "argon", "karbon")
+    conductor_hint = "a named Opus-class model, not Auto"
     tiers = {"S4": None, "S3": None, "S2": {"model": "auto"}, "S1": {"model": "auto"}}
     notes = ("Uses your `kiro-cli login` session, or KIRO_API_KEY where set. Monthly credit usage is "
              "read with `/usage`. Auto covers build and mechanical work.")

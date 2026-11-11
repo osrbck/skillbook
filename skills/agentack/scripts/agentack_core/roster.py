@@ -239,7 +239,7 @@ def check_conductor(host: str, model: str, cfg: dict) -> dict:
     prov = PROVIDERS.get(host)
     if prov is None or not prov.conductor:
         return {"ok": False, "message": "%s cannot host the conductor in this release "
-                                        "(supported: claude, codex, agy)." % host}
+                                        "(supported: claude, codex, agy, kiro)." % host}
     words = set(prov.conductor_keywords)
     recommended = []
     for tier in ("S3", "S4"):
@@ -251,5 +251,5 @@ def check_conductor(host: str, model: str, cfg: dict) -> dict:
     ok = any(w in low for w in words)
     msg = None if ok else (
         "The conductor holds the whole workflow in context, so it should run on a plan-and-review "
-        "class model (%s). This session is on '%s'." % (" or ".join(recommended), model))
+        "class model (%s). This session is on '%s'." % (" or ".join(recommended) or prov.conductor_hint, model))
     return {"ok": ok, "host": host, "model": model, "recommended": recommended, "message": msg}

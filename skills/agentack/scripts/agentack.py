@@ -58,6 +58,8 @@ def detect_host() -> str:
         return "codex"
     if any(k.startswith("ANTIGRAVITY_") for k in os.environ):
         return "agy"
+    if any(k.startswith("KIRO_") and k not in ("KIRO_HOME", "KIRO_API_KEY") for k in os.environ):
+        return "kiro"
     return "unknown"
 
 
@@ -791,7 +793,7 @@ def main(argv=None) -> int:
     s.set_defaults(fn=cmd_roster)
 
     s = sub.add_parser("check-conductor")
-    s.add_argument("--host", required=True, choices=["claude", "codex", "agy"])
+    s.add_argument("--host", required=True, choices=["claude", "codex", "agy", "kiro"])
     s.add_argument("--model", required=True)
     s.set_defaults(fn=cmd_check_conductor)
 
@@ -805,7 +807,7 @@ def main(argv=None) -> int:
             s.add_argument("--brief", required=True, help="path to the task brief (Markdown)")
             s.add_argument("--cwd", help="working directory for the worker (default: current directory)")
             s.add_argument("--mode", choices=["read", "write"], help="default depends on the role")
-            s.add_argument("--host", choices=["claude", "codex", "agy"], help="the conductor's own CLI")
+            s.add_argument("--host", choices=["claude", "codex", "agy", "kiro"], help="the conductor's own CLI")
             s.add_argument("--timeout", type=float, help="minutes")
             s.add_argument("--unit", help="which unit of the project (see `project`); needed only when "
                                           "the project has several of that layer")

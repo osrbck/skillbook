@@ -21,7 +21,7 @@ selected provider.
 | `codex` Codex | gpt-6-astra (high) | gpt-6-astra (medium), else gpt-6.1-sol (high) | gpt-6.1-sol (medium) | gpt-6-luna (low) | yes |
 | `agy` Antigravity | Gemini 4 Karbon, else Argon | Gemini 4 Argon, else 3.1 Pro | Gemini 3.1 Pro | Gemini 3.8 Flash | yes (app, IDE, CLI) |
 | `cursor` Cursor | — name one | — name one | Composer | Auto | no |
-| `kiro` Kiro | — name one | — name one | Auto | Auto | planned |
+| `kiro` Kiro | — name one | — name one | Auto | Auto | yes (IDE and CLI), on a named Opus-class model |
 
 - On Codex, Astra is the plan-and-review model as well as the decider: it is the model on a par
   with Opus. Decisions use high reasoning effort, planning and review medium. Sol builds. On an
@@ -194,11 +194,13 @@ host with `/agentack resume`; progress is in `docs/features/<slug>/status.md`.
 | Claude Code | `~/.claude/skills/agentack` | `/agentack` | Claude workers as native subagents, others as CLI runs |
 | Codex | `~/.codex/skills/agentack` | `/agentack` | CLI runs |
 | Antigravity (app, IDE, CLI) | `~/.gemini/config/skills/agentack` | `/agentack` | CLI runs; Gemini workers need the `agy` CLI |
+| Kiro (IDE, CLI) | `~/.kiro/skills/agentack` | `/agentack` | CLI runs; Kiro workers need `kiro-cli` |
 
 The conductor should be on its host's S3 model or above: Opus, GPT-6 Astra, Gemini 4 Argon
-(3.1 Pro is accepted).
-Antigravity loads skills by their description, so the description says the skill is for explicit
-`/agentack` calls only.
+(3.1 Pro is accepted). In Kiro, pick a named Opus-class model: Auto does not say which model
+is conducting, so the check does not accept it.
+Antigravity and Kiro can load a skill by its description, so the description says the skill is
+for explicit `/agentack` calls only.
 
 ## Files
 
