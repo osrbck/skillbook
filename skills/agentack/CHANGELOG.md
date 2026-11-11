@@ -4,6 +4,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 
 ## [Unreleased]
 
+### Fixed
+- A tier that lost its model once stayed empty for good: `setup` kept the saved entry and `verify`
+  only tested tiers that still had a model. A roster carried over from an older version, or an
+  account that gained a model later, therefore kept reporting that model as "not available on
+  this account". `verify` now tests dropped tiers again and reports the ones that came back
+  (`restored`); `setup` resolves them again for a provider it keeps
+
+### Added
+- Changing the roster in plain words ("put the mechanical work on Kiro"): the skill tells the
+  conductor how to translate such a request into `setup` flags, the setup summary and
+  `roster --md` say that the roster can be changed, and the README shows how
+
+### Security
+- A project's `.agentack.json` can no longer change this machine's settings. It used to be merged
+  over the user config key by key, so a repository could set the status line command (run through
+  the shell when the status line hook is installed), a provider's binary or its extra CLI
+  arguments. It may now set only `project`, `project_override` and `allowed_providers`; any other
+  key is ignored and `roster` / `doctor` name it
+
 ## [2.1.0] - 2026-11-11
 
 Agentack no longer assumes a stack or an architecture: it reads the project and the crew takes

@@ -109,6 +109,10 @@ def next_steps(cfg: dict, project: Path) -> list:
     elif not env["project_initialised"]:
         steps.append({"level": "info", "text": "this project has not been scanned yet; it happens by itself "
                       "on the first task, or now with /agentack init"})
+    if cfg.get("_project_ignored"):
+        steps.append({"level": "info", "text": "this project's .agentack.json sets %s; a project file may only "
+                      "set %s, so that is ignored. Settings for this machine live in %s (/agentack setup)."
+                      % (", ".join(cfg["_project_ignored"]), ", ".join(config.PROJECT_KEYS), config.config_path())})
     fb = cfg["limit_fallback"]
     for row in roster.table(cfg):
         if row["fit"] and row["fit"] <= 2:
@@ -202,6 +206,25 @@ def _roster_payload(cfg: dict) -> dict:
             "single_provider": len(cfg["order"]) == 1, "verified": bool(cfg.get("verified_at"))}
 
 
+def _restore_dropped(prov, entry: dict, binary) -> list:
+    """Resolve again every tier of a saved provider entry that has no model; returns those tiers.
+
+    A tier loses its model when the listing lacks it or a ping is refused. `setup` keeps a saved
+    entry and `verify` only tests tiers that have a model, so without this a tier dropped once
+    (by an older version, a bad day at the provider, or before the account got the model) would
+    stay empty for good. A restored tier is only a candidate: `verify` tests it like any other."""
+    tiers = entry.setdefault("tiers", {})
+    empty = [t for t in TIERS if not tiers.get(t)]
+    if not empty:
+        return []
+    fresh, _ = prov.resolve_tiers(binary)
+    restored = [t for t in empty if fresh.get(t)]
+    for t in restored:
+        tiers[t] = fresh[t]
+        (entry.get("unavailable") or {}).pop(t, None)
+    return restored
+
+
 def cmd_setup(args, cfg, project):
     cfg = {k: v for k, v in config.load(None).items() if not k.startswith("_")}   # user level only
     if args.providers:
@@ -224,6 +247,7 @@ def cmd_setup(args, cfg, project):
                         old[p]["tiers"][t] = tiers.get(t)
                         if t in unavailable:
                             old[p].setdefault("unavailable", {})[t] = unavailable[t]
+                _restore_dropped(PROVIDERS[p], old[p], PROVIDERS[p].find(cfg))
             else:
                 tiers, unavailable = PROVIDERS[p].resolve_tiers(PROVIDERS[p].find(cfg))
                 cfg["providers"][p] = {"bin": (old.get(p) or {}).get("bin"), "tiers": tiers,
@@ -334,6 +358,10 @@ def cmd_roster(args, cfg, project):
     for step in data["next_steps"]:
         if step["level"] == "action":
             lines.append("→ %s. Fix: %s" % (step["text"], step["fix"]))
+    example = (", e.g. `/agentack put the mechanical work on %s`" % PROVIDERS[data["order"][-1]].label
+               if len(data["order"]) > 1 else "")
+    lines += ["", "To change who does what, ask in plain words%s. `/agentack verify` tests the models "
+                  "again; `/agentack setup` adds or removes providers." % example]
     print("\n".join(lines))
     return 0
 
@@ -568,7 +596,7 @@ def cmd_verify(args, cfg, project):
     if not cfg.get("order"):
         return fail("Agentack is not set up yet", code=3)
     limits.clear_missing(cfg["order"])
-    results, removed = [], []
+    results, removed, restored = [], [], []
     for name in cfg["order"]:
         prov, entry = PROVIDERS[name], cfg["providers"][name]
         entry.pop("disabled", None)
@@ -578,6 +606,7 @@ def cmd_verify(args, cfg, project):
             results.append({"provider": name, "ok": False, "error": "not installed"})
             entry["disabled"] = entry["disabled_kind"] = "not installed"
             continue
+        back = _restore_dropped(prov, entry, binary)        # dropped earlier: test them again
         seen = {}
         listed = prov.trusted_models(binary)
         for tier in reversed(TIERS):                       # S4 first
@@ -619,9 +648,11 @@ def cmd_verify(args, cfg, project):
                 entry["disabled_kind"] = "sign-in" if (res.get("hint") or prov.auth(binary) == "not signed in") \
                     else "unknown"
                 break
+        if not entry.get("disabled"):
+            restored += ["%s:%s (%s)" % (name, entry["tiers"][t]["model"], t) for t in back if entry["tiers"].get(t)]
     cfg["verified_at"] = __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds")
     config.save(cfg)
-    return out({"checked": results, "removed": removed, **_roster_payload(cfg),
+    return out({"checked": results, "removed": removed, "restored": restored, **_roster_payload(cfg),
                 "next_steps": next_steps(config.load(None), project)})
 
 

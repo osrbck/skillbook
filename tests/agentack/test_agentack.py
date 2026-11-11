@@ -187,6 +187,17 @@ class SetupTest(Base):
         self.setup_providers("claude")
         code, text = self.run_cli("roster", "--md", raw=True)
         self.assertIn("| reviewer | S3 plan & review | claude:opus | 5/5 review | goal |", text)
+        self.assertIn("To change who does what, ask in plain words.", text)
+
+    def test_moving_a_tier_to_another_provider(self):
+        self.setup_providers("claude,kiro")
+        code, d = self.run_cli("setup", "--role", "scout=kiro,claude", "--role", "contract-guard=kiro,claude")
+        for role in ("scout", "contract-guard"):
+            row = next(r for r in d["roster"] if r["role"] == role)
+            self.assertEqual((row["primary"], row["fallbacks"]), ("kiro:auto", ["claude:haiku"]))
+        self.assertEqual(self.primary(d, "backend"), "claude:sonnet", "other roles keep their order")
+        code, text = self.run_cli("roster", "--md", raw=True)
+        self.assertIn("put the mechanical work on Kiro", text)
 
 
 class GuidanceTest(Base):
@@ -323,6 +334,50 @@ class DispatchTest(Base):
         self.assertEqual((self.project / ".agentack" / ".gitignore").read_text(), "*\n")
 
 
+class ProjectFileTrustTest(Base):
+    """.agentack.json arrives with the repository: it may describe the project, not run things here."""
+
+    def project_file(self, data):
+        (self.project / ".agentack.json").write_text(json.dumps(data))
+
+    def test_status_line_command_from_the_project_file_is_not_run(self):
+        marker = self.tmp / "ran"
+        self.project_file({"statusline_passthrough": "touch %s; echo FROM-PROJECT" % marker})
+        code, line = self.run_cli("statusline", stdin="{}", raw=True)
+        self.assertEqual(code, 0)
+        self.assertNotIn("FROM-PROJECT", line)
+        self.assertFalse(marker.exists())
+
+    def test_project_file_cannot_choose_binaries_or_arguments(self):
+        self.setup_providers("codex")
+        marker = self.tmp / "ran"
+        planted = self.tmp / "planted"
+        planted.write_text("#!/bin/sh\ntouch %s\n" % marker)
+        planted.chmod(planted.stat().st_mode | stat.S_IEXEC)
+        self.project_file({"providers": {"codex": {"bin": str(planted), "extra_args": ["--from-project"]}}})
+        row = self.go("scout")
+        self.assertEqual(row["status"], "done")
+        self.assertFalse(marker.exists())
+        self.assertFalse([c for c in self.fake_log() if "--from-project" in c["argv"]])
+
+    def test_ignored_keys_are_reported_and_allowed_ones_still_work(self):
+        self.setup_providers("claude,codex")
+        self.project_file({"allowed_providers": ["codex"], "order": ["claude"], "timeouts": {"S1": 1}})
+        code, d = self.run_cli("roster")
+        self.assertEqual(d["order"], ["claude", "codex"])
+        note = next(s["text"] for s in d["next_steps"] if ".agentack.json" in s["text"])
+        self.assertIn("order, timeouts", note)
+        self.assertEqual(self.go("scout")["provider"], "codex")
+
+    def test_malformed_allowed_keys_are_ignored(self):
+        self.setup_providers("claude,codex")
+        self.project_file({"allowed_providers": "codex", "project": "x", "project_override": ["y"]})
+        code, d = self.run_cli("roster")
+        self.assertEqual(code, 0, d)
+        note = next(s["text"] for s in d["next_steps"] if ".agentack.json" in s["text"])
+        self.assertIn("allowed_providers, project, project_override", note)
+
+
 class MissingModelTest(Base):
     """A model the account does not have is skipped silently; nobody is asked anything."""
     NO_ARGON = {"FAKE_AGY_MODELS": "gemini-3.8-flash-medium,gemini-3.8-flash-high,gemini-3.5-flash-lite"}
@@ -414,6 +469,51 @@ class MissingModelTest(Base):
         self.setup_providers("claude")
         code, d = self.run_cli("resolve", "--role", "decider")
         self.assertEqual((d["model"], d.get("substituted")), ("fable", None))
+
+
+class DroppedTierTest(Base):
+    """A tier that lost its model once gets another chance; it used to stay empty for good."""
+
+    # what `agy models` lists on a Pro account: Argon and Flash by effort, no 3.1 Pro, no Karbon
+    LISTING = ("gemini-4-argon-medium,gemini-4-argon-high,gemini-4-argon-low,"
+               "gemini-3.8-flash-high,gemini-3.8-flash-medium,gemini-3.8-flash-low")
+
+    def stale_roster(self):
+        """A saved roster in which an older version dropped Antigravity's S3 and S4."""
+        self.setup_providers("claude,agy")
+        path = Path(self.env["XDG_CONFIG_HOME"]) / "agentack" / "config.json"
+        cfg = json.loads(path.read_text())
+        cfg["providers"]["agy"] = {"bin": None, "extra_args": [],
+                                   "tiers": {"S1": {"model": "gemini-3.8-flash-low"},
+                                             "S2": {"model": "gemini-3.8-flash-medium"}, "S3": None, "S4": None},
+                                   "unavailable": {"S4": "gemini-4-argon", "S3": "gemini-3.1-pro"}}
+        path.write_text(json.dumps(cfg))
+        return {"FAKE_AGY_MODELS": self.LISTING}
+
+    def test_verify_tests_dropped_tiers_again(self):
+        env = self.stale_roster()
+        code, d = self.run_cli("verify", env=env)
+        self.assertEqual(d["restored"], ["agy:gemini-4-argon-high (S3)", "agy:gemini-4-argon-high (S4)"])
+        self.assertEqual(self.primary(d, "reviewer"), "agy:gemini-4-argon-high")
+        self.assertFalse([n for n in d["notes"] if "not available" in n], d["notes"])
+        self.assertEqual(self.primary(d, "scout"), "claude:haiku")
+        code, d = self.run_cli("roster", env=env)
+        self.assertIn("agy:gemini-3.8-flash-low", next(r for r in d["roster"] if r["role"] == "scout")["fallbacks"],
+                      "tiers that had a model keep it")
+
+    def test_setup_restores_dropped_tiers_of_a_saved_provider(self):
+        env = self.stale_roster()
+        code, d = self.run_cli("setup", "--providers", "claude,agy", env=env)
+        self.assertEqual(self.primary(d, "reviewer"), "agy:gemini-4-argon-high")
+        self.assertFalse([n for n in d["notes"] if "not available" in n], d["notes"])
+
+    def test_a_model_the_account_still_lacks_is_dropped_again(self):
+        env = dict(self.stale_roster(), FAKE_AGY_MODELS="gemini-4-argon-high,gemini-3.8-flash-medium,gemini-3.8-flash-low",
+                   FAKE_AGY_NO_MODELS="gemini-4-argon-high")
+        code, d = self.run_cli("verify", env=env)
+        self.assertEqual(d["restored"], [])
+        self.assertEqual(self.primary(d, "reviewer"), "claude:opus")
+        self.assertTrue([n for n in d["notes"] if "gemini-4-argon-high (S4) is not available" in n], d["notes"])
 
 
 class StrengthsTest(Base):
