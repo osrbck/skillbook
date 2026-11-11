@@ -1,4 +1,5 @@
-"""Configuration: user config (~/.config/agentack/config.json) merged with a project file (.agentack.json)."""
+"""Configuration: user config (~/.config/agentack/config.json), plus the few keys a project file
+(.agentack.json) is allowed to set (see PROJECT_KEYS)."""
 
 from __future__ import annotations
 
@@ -83,14 +84,36 @@ def write_json(path: Path, data: dict) -> None:
     os.replace(tmp, path)
 
 
+# The only keys a project's .agentack.json may set. That file arrives with the repository, so it
+# is not trusted with this machine: it may describe the project and narrow the providers, and
+# nothing else. Binaries, CLI arguments, models, role chains and the status line command come
+# from the user's own config only.
+PROJECT_KEYS = ("project", "project_override", "allowed_providers")
+
+
+def _project_settings(proj: dict):
+    """(settings a project file may contribute, the keys in it that are ignored)."""
+    kept = {k: v for k, v in proj.items() if k in PROJECT_KEYS}
+    allowed = kept.get("allowed_providers")
+    if allowed is not None and not (isinstance(allowed, list) and all(isinstance(p, str) for p in allowed)):
+        kept.pop("allowed_providers")
+    for key in ("project", "project_override"):
+        if key in kept and not isinstance(kept[key], dict):
+            kept.pop(key)
+    return kept, sorted(k for k in proj if k not in kept)
+
+
 def load(project: Optional[Path] = None) -> dict:
     cfg = _merge(DEFAULTS, read_json(config_path()) or {})
     cfg["_configured"] = bool(cfg.get("order"))
     if project:
         proj = read_json(Path(project) / ".agentack.json")
         if proj:
-            cfg = _merge(cfg, proj)
+            kept, ignored = _project_settings(proj)
+            cfg = _merge(cfg, kept)
             cfg["_project_config"] = True
+            if ignored:
+                cfg["_project_ignored"] = ignored
     return cfg
 
 

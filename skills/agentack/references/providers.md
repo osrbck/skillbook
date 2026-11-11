@@ -101,7 +101,10 @@ With two or three:
 - Per role chains are yours to change: `setup --role reviewer=codex,claude`.
 
 A project can restrict providers with `.agentack.json` at its root:
-`{"allowed_providers": ["claude"]}`.
+`{"allowed_providers": ["claude"]}`. That file comes with the repository, so it is not trusted
+with this machine: besides the project profile (`project`, `project_override`) this is the only
+setting it may carry. Any other key in it (binaries, CLI arguments, models, role chains, the
+status line command) is ignored, and `roster` says which.
 
 ## How each CLI is run
 
@@ -204,4 +207,4 @@ Antigravity loads skills by their description, so the description says the skill
 | `~/.config/agentack/config.json` | providers, models per tier, role chains, limit settings |
 | `~/.local/state/agentack/limits.json` | recorded limits and usage |
 | `<project>/.agentack/` | briefs, runs, logs, worktrees (git-ignored automatically) |
-| `<project>/.agentack.json` | optional project overrides, safe to commit |
+| `<project>/.agentack.json` | the project profile, your corrections to it and an optional provider allowlist; safe to commit, and unable to change this machine's settings |
