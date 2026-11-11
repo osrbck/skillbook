@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- `gitcommit` 0.1.0: clean commits under your own name, pushed to any git server
+  (see `skills/gitcommit/CHANGELOG.md`)
+
 ### Changed
 - `agentack` updated to 2.1.0 (see `skills/agentack/CHANGELOG.md`)
 

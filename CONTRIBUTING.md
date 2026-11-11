@@ -5,7 +5,8 @@ Thanks for helping. You can improve an existing skill or add a new one.
 ## Improving a skill
 
 Each skill has its own contributing notes, for example
-[skills/agentack/CONTRIBUTING.md](skills/agentack/CONTRIBUTING.md) and
+[skills/agentack/CONTRIBUTING.md](skills/agentack/CONTRIBUTING.md),
+[skills/gitcommit/CONTRIBUTING.md](skills/gitcommit/CONTRIBUTING.md) and
 [skills/worklog/CONTRIBUTING.md](skills/worklog/CONTRIBUTING.md). Note your change under
 "Unreleased" in that skill's `CHANGELOG.md`.
 

@@ -11,6 +11,7 @@ aynı skill **Claude Code**, **Codex** ve **Antigravity**'de çalışır.
 | Skill | Ne yapar | Komut |
 |---|---|---|
 | [**agentack**](skills/agentack/) | Her dilde ve mimaride full stack işler için conductor: projeyi bir kez okur, her görevi boyutlandırır ve Claude, Codex, Antigravity, Cursor ve Kiro arasında en küçük uzman ajan ekibine yönlendirir; contract ve review kapıları vardır. | `/agentack` |
+| [**gitcommit**](skills/gitcommit/) | Çalışma klasöründeki değişiklikleri birkaç temiz commit'e çevirir ve push'lar: amaca göre gruplar, deponun kendi kuralına uygun kısa mesajlar yazar, yalnızca senin adını kullanır (ortak yazar ya da yapay zekâ satırı yok), gizli anahtarları ve çöpleri dışarıda bırakır. Her git sunucusuyla çalışır. | `/gitcommit` |
 | [**worklog**](skills/worklog/) | Belirli bir zaman aralığındaki yerel AI kodlama oturumlarını tarar ve yapılan işi proje bazında, süre tahminleri, commit'ler ve issue anahtarlarıyla raporlar. | `/worklog` |
 
 Her skill'in klasöründe kendi README'si, değişiklik günlüğü ve katkı notları var.

@@ -11,6 +11,7 @@ A collection of open-source skills for AI coding agents. Each skill is a folder 
 | Skill | What it does | Command |
 |---|---|---|
 | [**agentack**](skills/agentack/) | Conductor for full stack work in any language and architecture: reads the project once, sizes each task and routes it to the smallest crew of specialist agents across Claude, Codex, Antigravity, Cursor and Kiro, with contract and review gates. | `/agentack` |
+| [**gitcommit**](skills/gitcommit/) | Turns the changes in your working tree into a few clean commits and pushes them: grouped by purpose, short messages in the repository's own convention, your name only (no co-author or AI attribution), secrets and junk left out. Works with any git server. | `/gitcommit` |
 | [**worklog**](skills/worklog/) | Scans your local AI coding sessions for a time range and writes a report of the work done, grouped by project, with time estimates, commits and issue keys. | `/worklog` |
 
 Each skill's folder has its own README, changelog and contributing notes.
