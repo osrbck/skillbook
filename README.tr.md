@@ -2,7 +2,7 @@
 
 Yapay zekâ kodlama ajanları için açık kaynak skill koleksiyonu. Her skill, açık
 [Agent Skills](https://agentskills.io) formatında bir `SKILL.md` içeren bir klasördür; bu sayede
-aynı skill **Claude Code**, **Codex** ve **Antigravity**'de çalışır.
+aynı skill **Claude Code**, **Codex**, **Antigravity** ve **Kiro**'da çalışır. Buradaki her skill dördü için yazılır.
 
 > 🇬🇧 English: [README.md](README.md)
 
@@ -11,7 +11,7 @@ aynı skill **Claude Code**, **Codex** ve **Antigravity**'de çalışır.
 | Skill | Ne yapar | Komut |
 |---|---|---|
 | [**agentack**](skills/agentack/) | Her dilde ve mimaride full stack işler için conductor: projeyi bir kez okur, her görevi boyutlandırır ve Claude, Codex, Antigravity, Cursor ve Kiro arasında en küçük uzman ajan ekibine yönlendirir; contract ve review kapıları vardır. | `/agentack` |
-| [**gitcommit**](skills/gitcommit/) | Çalışma klasöründeki değişiklikleri birkaç temiz commit'e çevirir ve push'lar: amaca göre gruplar, deponun kendi kuralına uygun kısa mesajlar yazar, yalnızca senin adını kullanır (ortak yazar ya da yapay zekâ satırı yok), gizli anahtarları ve çöpleri dışarıda bırakır. Her git sunucusuyla çalışır. | `/gitcommit` |
+| [**gitcommit**](skills/gitcommit/) | Çalışma klasöründeki değişiklikleri tek komutla birkaç temiz commit'e çevirir ve push'lar: amaca göre gruplar, deponun kendi kuralına ve diline uygun kısa mesajlar yazar, yalnızca senin adını kullanır (ortak yazar ya da yapay zekâ satırı yok), gizli anahtarları ve çöpleri dışarıda bırakır. Mesajları sağlayıcının en küçük güncel modeli yazar, bu yüzden çok az token harcar. Her git sunucusuyla çalışır. | `/gitcommit` |
 | [**worklog**](skills/worklog/) | Belirli bir zaman aralığındaki yerel AI kodlama oturumlarını tarar ve yapılan işi proje bazında, süre tahminleri, commit'ler ve issue anahtarlarıyla raporlar. | `/worklog` |
 
 Her skill'in klasöründe kendi README'si, değişiklik günlüğü ve katkı notları var.
@@ -24,7 +24,7 @@ cd ~/skillbook
 
 ./install.sh                          # skill'leri listele
 ./install.sh worklog                  # tek skill, Claude Code için
-./install.sh worklog agentack --all   # birden fazla skill; Claude Code, Codex ve Antigravity için
+./install.sh worklog agentack --all   # birden fazla skill; Claude Code, Codex, Antigravity ve Kiro için
 ./install.sh --everything --codex     # tüm skill'ler, Codex için
 ```
 
@@ -33,7 +33,8 @@ cd ~/skillbook
 | *(yok)* ya da `--claude` | `~/.claude/skills/<skill>` (`CLAUDE_CONFIG_DIR`'e uyar) |
 | `--codex` | `~/.codex/skills/<skill>` (`CODEX_HOME`'a uyar) |
 | `--agy` | `~/.gemini/config/skills/<skill>` (Antigravity uygulama, IDE ve CLI) |
-| `--all` | üçü birden |
+| `--kiro` | `~/.kiro/skills/<skill>` (Kiro IDE ve CLI; `KIRO_HOME`'a uyar) |
+| `--all` | dördü birden |
 
 Güncelleme: `git pull && ./install.sh <skill>...` · Kaldırma: `./install.sh <skill>... --uninstall`.
 Sadece skill'in kendisi kopyalanır; README, changelog ve kurulum hook'ları repoda kalır.

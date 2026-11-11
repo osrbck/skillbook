@@ -20,7 +20,7 @@ jobs:
           ./install.sh --everything --all
           for s in skills/*/; do
             s="$(basename "$s")"
-            for t in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/config/skills"; do
+            for t in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/config/skills" "$HOME/.kiro/skills"; do
               test -f "$t/$s/SKILL.md"
               test ! -e "$t/$s/README.md"
             done

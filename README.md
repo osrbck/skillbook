@@ -2,7 +2,7 @@
 
 A collection of open-source skills for AI coding agents. Each skill is a folder with a `SKILL.md`
 (the open [Agent Skills](https://agentskills.io) format), so the same skill works in
-**Claude Code**, **Codex** and **Antigravity**.
+**Claude Code**, **Codex**, **Antigravity** and **Kiro**. Every skill here is written for all four.
 
 > 🇹🇷 Türkçe: [README.tr.md](README.tr.md)
 
@@ -11,8 +11,8 @@ A collection of open-source skills for AI coding agents. Each skill is a folder 
 | Skill | What it does | Command |
 |---|---|---|
 | [**agentack**](skills/agentack/) | Conductor for full stack work in any language and architecture: reads the project once, sizes each task and routes it to the smallest crew of specialist agents across Claude, Codex, Antigravity, Cursor and Kiro, with contract and review gates. | `/agentack` |
-| [**gitcommit**](skills/gitcommit/) | Turns the changes in your working tree into a few clean commits and pushes them: grouped by purpose, short messages in the repository's own convention, your name only (no co-author or AI attribution), secrets and junk left out. Works with any git server. | `/gitcommit` |
-| [**worklog**](skills/worklog/) | Scans your local AI coding sessions for a time range and writes a report of the work done, grouped by project, with time estimates, commits and issue keys. | `/worklog` |
+| [**gitcommit**](skills/gitcommit/) | Turns the changes in your working tree into a few clean commits and pushes them, in one command: grouped by purpose, short messages in the repository's own convention and language, your name only (no co-author or AI attribution), secrets and junk left out. The messages are written by your provider's smallest current model, so it costs very few tokens. Works with any git server. | `/gitcommit` |
+| [**worklog**](skills/worklog/) | Scans your local AI coding sessions (Claude Code, Codex, Antigravity, Kiro, OpenCode) for a time range and writes a report of the work done, grouped by project, with time estimates, commits and issue keys. | `/worklog` |
 
 Each skill's folder has its own README, changelog and contributing notes.
 
@@ -24,7 +24,7 @@ cd ~/skillbook
 
 ./install.sh                          # list the skills
 ./install.sh worklog                  # one skill, for Claude Code
-./install.sh worklog agentack --all   # several skills, for Claude Code, Codex and Antigravity
+./install.sh worklog agentack --all   # several skills, for Claude Code, Codex, Antigravity and Kiro
 ./install.sh --everything --codex     # every skill, for Codex
 ```
 
@@ -33,7 +33,8 @@ cd ~/skillbook
 | *(none)* or `--claude` | `~/.claude/skills/<skill>` (respects `CLAUDE_CONFIG_DIR`) |
 | `--codex` | `~/.codex/skills/<skill>` (respects `CODEX_HOME`) |
 | `--agy` | `~/.gemini/config/skills/<skill>` (Antigravity app, IDE and CLI) |
-| `--all` | all three |
+| `--kiro` | `~/.kiro/skills/<skill>` (Kiro IDE and CLI; respects `KIRO_HOME`) |
+| `--all` | all four |
 
 Update with `git pull && ./install.sh <skill>...`, remove with `./install.sh <skill>... --uninstall`.
 Only the skill itself is copied; READMEs, changelogs and install hooks stay in the repo.

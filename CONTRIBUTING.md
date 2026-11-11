@@ -37,7 +37,10 @@ Each skill has its own contributing notes, for example
 
 ## Guidelines
 
-- **Agent-neutral.** Write for any agent that reads `SKILL.md`. Note tool-specific parts clearly.
+- **Four providers.** Every skill works in Claude Code, Codex, Antigravity and Kiro. Write for any
+  agent that reads `SKILL.md`, test or reason through all four, and note provider-specific parts
+  clearly. A frontmatter field one of them does not know (for example `disable-model-invocation`)
+  must not be the only thing a rule rests on: say it in the description too.
 - **Standard library only** for helper scripts, and no network calls unless that is the skill's
   purpose and the README says so.
 - **Safe by default.** A skill must not delete, push or send anything without the user asking.

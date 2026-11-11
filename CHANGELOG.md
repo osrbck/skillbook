@@ -8,8 +8,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- `gitcommit` 0.1.0: clean commits under your own name, pushed to any git server
-  (see `skills/gitcommit/CHANGELOG.md`)
+- `gitcommit` 0.2.0: clean commits under your own name, written by the provider's smallest
+  current model and pushed to any git server (see `skills/gitcommit/CHANGELOG.md`)
+- Kiro as a fourth install target: `install.sh --kiro` (`~/.kiro/skills`); `--all` now means
+  Claude Code, Codex, Antigravity and Kiro, and every skill is written for all four
+- `worklog` 0.2.0 reads Antigravity sessions; `agentack` can be conducted from Kiro
 
 ### Changed
 - `agentack` updated to 2.1.0 (see `skills/agentack/CHANGELOG.md`)

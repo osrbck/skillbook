@@ -6,7 +6,7 @@ One sentence on what the skill does.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
-~/skillbook/install.sh my-skill          # Claude Code; add --codex, --agy or --all
+~/skillbook/install.sh my-skill          # Claude Code; add --codex, --agy, --kiro or --all
 ```
 
 ## Use

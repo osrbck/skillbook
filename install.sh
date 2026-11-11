@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# skillbook — install AI agent skills for Claude Code, Codex and/or Antigravity.
+# skillbook — install AI agent skills for Claude Code, Codex, Antigravity and/or Kiro.
 #
 #   ./install.sh                         list the skills in this repo
 #   ./install.sh <skill>...              install for Claude Code   (~/.claude/skills/<skill>)
 #   ./install.sh <skill>... --codex      install for Codex         (~/.codex/skills/<skill>)
 #   ./install.sh <skill>... --agy        install for Antigravity   (~/.gemini/config/skills/<skill>)
-#   ./install.sh <skill>... --all        all three
-#   ./install.sh <skill>... --uninstall  remove from all three
+#   ./install.sh <skill>... --kiro       install for Kiro          (~/.kiro/skills/<skill>)
+#   ./install.sh <skill>... --all        all four
+#   ./install.sh <skill>... --uninstall  remove from all four
 #   ./install.sh --everything [flags]    every skill in the repo
 #
-# Target flags can be combined (--codex --agy). Each skill may ship an optional
+# Target flags can be combined (--codex --kiro). Each skill may ship an optional
 # skills/<skill>/install.hook.sh with post_install / post_uninstall functions.
 set -euo pipefail
 
@@ -19,6 +20,7 @@ CLAUDE_HOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 CLAUDE_DIR="$CLAUDE_HOME/skills"
 CODEX_DIR="${CODEX_HOME:-$HOME/.codex}/skills"
 AGY_DIR="$HOME/.gemini/config/skills"
+KIRO_DIR="${KIRO_HOME:-$HOME/.kiro}/skills"
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -41,7 +43,7 @@ list_skills() {
   local s
   for s in $(available); do printf "  %-14s %s...\n" "$s" "$(describe "$s")"; done
   echo
-  echo "Install:  ./install.sh <skill>... [--codex] [--agy] [--all] [--uninstall]"
+  echo "Install:  ./install.sh <skill>... [--codex] [--agy] [--kiro] [--all] [--uninstall]"
   echo "          ./install.sh --everything [--all]"
 }
 
@@ -73,12 +75,13 @@ for arg in "$@"; do
   case "$arg" in
     --codex)      targets+=("$CODEX_DIR") ;;
     --agy)        targets+=("$AGY_DIR") ;;
+    --kiro)       targets+=("$KIRO_DIR") ;;
     --claude)     targets+=("$CLAUDE_DIR") ;;
-    --all)        targets+=("$CLAUDE_DIR" "$CODEX_DIR" "$AGY_DIR") ;;
+    --all)        targets+=("$CLAUDE_DIR" "$CODEX_DIR" "$AGY_DIR" "$KIRO_DIR") ;;
     --uninstall)  uninstall=1 ;;
     --everything) everything=1 ;;
     --list|-l)    list_skills; exit 0 ;;
-    -h|--help)    sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*)           echo "unknown option: $arg" >&2; exit 2 ;;
     *)            skills+=("$arg") ;;
   esac
@@ -99,7 +102,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 if [ "$uninstall" -eq 1 ]; then
-  [ "${#targets[@]}" -gt 0 ] || targets=("$CLAUDE_DIR" "$CODEX_DIR" "$AGY_DIR")
+  [ "${#targets[@]}" -gt 0 ] || targets=("$CLAUDE_DIR" "$CODEX_DIR" "$AGY_DIR" "$KIRO_DIR")
   for s in "${skills[@]}"; do
     for t in "${targets[@]}"; do remove_from "$s" "$t"; done
     run_hook "$s" post_uninstall
@@ -108,7 +111,7 @@ if [ "$uninstall" -eq 1 ]; then
 fi
 
 [ "${#targets[@]}" -gt 0 ] || targets=("$CLAUDE_DIR")
-export CLAUDE_HOME CLAUDE_DIR CODEX_DIR AGY_DIR CONFIG_HOME STATE_HOME STAMP
+export CLAUDE_HOME CLAUDE_DIR CODEX_DIR AGY_DIR KIRO_DIR CONFIG_HOME STATE_HOME STAMP
 for s in "${skills[@]}"; do
   echo "$s"
   for t in "${targets[@]}"; do install_to "$s" "$t"; done
