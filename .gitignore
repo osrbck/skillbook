@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# local, personal notes (not part of the project)
+NOTES.local.md
+*.local.md
+
+# runtime data when a skill is used inside this repo
+.agentack/

@@ -1,0 +1,74 @@
+# skillbook
+
+A collection of open-source skills for AI coding agents. Each skill is a folder with a `SKILL.md`
+(the open [Agent Skills](https://agentskills.io) format), so the same skill works in
+**Claude Code**, **Codex** and **Antigravity**.
+
+> 🇹🇷 Türkçe: [README.tr.md](README.tr.md)
+
+## Skills
+
+| Skill | What it does | Command |
+|---|---|---|
+| [**agentack**](skills/agentack/) | Conductor for contract-first full stack work: sizes each task and routes it to the smallest crew of specialist agents across Claude, Codex, Antigravity, Cursor and Kiro, with contract and review gates. | `/agentack` |
+| [**worklog**](skills/worklog/) | Scans your local AI coding sessions for a time range and writes a report of the work done, grouped by project, with time estimates, commits and issue keys. | `/worklog` |
+
+Each skill's folder has its own README, changelog and contributing notes.
+
+## Install
+
+```bash
+git clone https://github.com/osrbck/skillbook.git ~/skillbook
+cd ~/skillbook
+
+./install.sh                          # list the skills
+./install.sh worklog                  # one skill, for Claude Code
+./install.sh worklog agentack --all   # several skills, for Claude Code, Codex and Antigravity
+./install.sh --everything --codex     # every skill, for Codex
+```
+
+| Flag | Installs to |
+|---|---|
+| *(none)* or `--claude` | `~/.claude/skills/<skill>` (respects `CLAUDE_CONFIG_DIR`) |
+| `--codex` | `~/.codex/skills/<skill>` (respects `CODEX_HOME`) |
+| `--agy` | `~/.gemini/config/skills/<skill>` (Antigravity app, IDE and CLI) |
+| `--all` | all three |
+
+Update with `git pull && ./install.sh <skill>...`, remove with `./install.sh <skill>... --uninstall`.
+Only the skill itself is copied; READMEs, changelogs and install hooks stay in the repo.
+
+**Requirements:** Python 3.8+ and bash, on macOS, Linux or WSL. The skills' helper scripts use
+only the Python standard library.
+
+## Repository layout
+
+```
+skillbook/
+├── install.sh                  # one installer for every skill
+├── skills/
+│   └── <skill>/
+│       ├── SKILL.md            # required: name + description frontmatter, then instructions
+│       ├── scripts/ …          # optional helpers, references, templates
+│       ├── README.md           # repo-only: docs shown on GitHub
+│       ├── CHANGELOG.md        # repo-only
+│       └── install.hook.sh     # repo-only, optional: post_install / post_uninstall
+├── tests/<skill>/              # tests per skill
+├── docs/<skill>/               # images and other docs assets
+├── template/                   # starting point for a new skill
+└── scripts/validate.py         # checks every skill's structure (runs in CI)
+```
+
+## Development
+
+```bash
+python3 scripts/validate.py                               # structure and frontmatter of every skill
+python3 -m unittest discover -s tests/worklog -v          # one skill's tests
+for d in tests/*/; do python3 -m unittest discover -s "$d"; done   # all of them
+```
+
+Want to add a skill? See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE). skillbook is a community project and is not affiliated with Anthropic, OpenAI,
+Google, Cursor or AWS.
