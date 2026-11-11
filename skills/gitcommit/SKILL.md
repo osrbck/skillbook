@@ -32,6 +32,7 @@ the rules below, so a message that breaks them is refused before anything is wri
 | `single`, `one commit`, `tek commit` | one commit for everything |
 | `plan`, `dry run` | show the commits you would make; change nothing |
 | `include <path>` | commit a path the helper flagged (§2), with `--include-flagged` |
+| `ask`, `sor` | the user agrees to a password window: push with `--ask` (§4) |
 | a language (`in English`, `türkçe`) | write the messages in that language, whatever the history uses |
 | a task: work that is not done yet ("add coupon support to checkout") | do the task first, then commit and push it: see "Called with a task" |
 | any other text | a hint about work that is already in the tree: what it was, which paths to take, the wording to use |
@@ -218,8 +219,34 @@ GitHub, GitLab, Bitbucket, a self-hosted server. A branch with no upstream is pu
 | `which-remote` | several remotes and none is called `origin` | ask which one, then `$G push --since <head> --remote <name>` |
 | `rejected` | the remote has commits the user does not have | stop. Say that nothing was pushed and give the `text`. Do not pull, rebase or merge unasked |
 | `refused` | a protected branch or a server rule | stop and give the `text` |
-| `auth` · `offline` | credentials or network | stop and give the `text`; the commits are safe locally |
+| `auth` | the server accepted no sign-in from this machine | stop: see "When the server wants a sign-in" |
+| `offline` | the server could not be reached | stop and give the `text`; the commits are safe locally |
 | `check-failed` | a commit of this run broke a rule (a hook or a bypass) | fix only the commits made in this run and not yet pushed, then push again; if you cannot, tell the user |
+
+### When the server wants a sign-in
+
+A push uses whatever the user set up for git: a credential helper, an SSH key, the SSH agent, a
+`GIT_ASKPASS` program. It never opens a password window on its own, so a project that has no
+saved sign-in here ends as `auth` instead of surprising the user with a dialog.
+
+On `auth`, the commits are made and safe; only the push is missing. Tell the user, in their
+language and in this order:
+
+1. what happened, from `text` (for example: git has no saved sign-in for github.com here);
+2. the `options`, first one first, each with its `run` line verbatim. The first is the
+   recommended one. Typical ones: use the SSH key this machine already has (`sign_in.ssh_key_accepted`),
+   sign in through the host's CLI, let the desktop's password window ask (`ask`), or run
+   `git push` once in their own terminal.
+
+Then stop. Do not pick an option for them:
+
+- Never ask for a password or a token in the conversation, never type one anywhere, never put
+  one in a URL or a file.
+- Never change the remote URL, the credential configuration or SSH files unasked. If the user
+  answers with an option ("use SSH"), do exactly that one command and push again.
+- `$G push --since <head> --ask` only when the user said `ask` in the call or chose that option.
+  Say first that a password window will open on their screen and that it wants a personal
+  access token, not the account password.
 
 ## 5. Report
 
@@ -244,6 +271,7 @@ advice, no closing sentence.
 - Never: force-push, `--no-verify`, amend or rebase commits that existed before this call,
   switch or create branches, stash, reset or discard the user's work, change git configuration,
   add or change remotes, create tags.
+- Never handle a credential: no password or token asked for, typed, stored or printed.
 - Never commit what the helper flagged unless the user named it in this call.
 - Outside a task given in the call, do not fix, format or improve the code you are committing.
   If you see a problem in it, one line in the report is enough.

@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections import Counter
@@ -95,10 +96,11 @@ def _env(english: bool = False) -> Dict[str, str]:
 
 
 def git(cwd: Path, *args: str, timeout: int = 60, english: bool = False,
-        stdin: Optional[str] = None) -> Tuple[int, str, str]:
+        stdin: Optional[str] = None, extra_env: Optional[Dict[str, str]] = None) -> Tuple[int, str, str]:
     try:
         p = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, timeout=timeout,
-                           env=_env(english), input=stdin, encoding="utf-8", errors="replace",
+                           env={**_env(english), **(extra_env or {})}, input=stdin, encoding="utf-8",
+                           errors="replace",
                            **({} if stdin is not None else {"stdin": subprocess.DEVNULL}))
         return p.returncode, p.stdout, p.stderr
     except subprocess.TimeoutExpired:
@@ -664,6 +666,97 @@ def cmd_check(args) -> dict:
     return run_check(repo, args.since)
 
 
+# -- signing in ------------------------------------------------------------------------------
+
+def _transport(url: Optional[str]) -> Tuple[str, Optional[str], Optional[str]]:
+    """(transport, host, path) of a remote URL: https://host/owner/repo.git, git@host:owner/repo.git …"""
+    url = url or ""
+    m = re.match(r"^(https?)://(?:[^/@]+@)?([^/:]+)(?::\d+)?/(.+?)/?$", url)
+    if m:
+        return m.group(1), m.group(2), m.group(3)
+    m = re.match(r"^ssh://(?:[^/@]+@)?([^/:]+)(?::\d+)?/(.+?)/?$", url) or re.match(r"^(?:[^/@]+@)?([^/:]+):(?!//)(.+?)/?$", url)
+    if m and "://" not in url.replace("ssh://", "", 1):
+        return "ssh", m.group(1), m.group(2)
+    return ("file" if url.startswith(("/", ".", "file://")) else "other"), None, None
+
+
+def prompt_guard(repo: Path, ask: bool) -> Tuple[Dict[str, str], Optional[str]]:
+    """(environment for the push, the password program git would have fallen back to).
+
+    A push must never open a password dialog nobody asked for. Whatever was set up for git on
+    purpose is left alone: credential helpers, GIT_ASKPASS, core.askPass, SSH keys and the SSH
+    agent. What is switched off is the accident: with nothing else to ask, git borrows the
+    desktop's SSH passphrase program (SSH_ASKPASS) and a username and password window appears in
+    the middle of an agent run. `ask` lets it appear, because then the user asked for it."""
+    explicit = os.environ.get("GIT_ASKPASS") or out(repo, "config", "core.askPass")
+    borrowed = None if explicit else os.environ.get("SSH_ASKPASS") or None
+    if ask:
+        return {}, borrowed
+    env = {"GCM_INTERACTIVE": "never"}                 # Git Credential Manager: no browser, no window
+    silent = shutil.which("true")
+    if not explicit and silent:
+        env["GIT_ASKPASS"] = silent                    # answers nothing, so the push fails cleanly
+    return env, borrowed
+
+
+def _ssh_accepted(host: str) -> Optional[bool]:
+    """Does this machine already hold an SSH key that `host` accepts? None when it cannot be told."""
+    if not shutil.which("ssh") or host in ("localhost", "::1") or re.match(r"^(127\.|\[)", host):
+        return None
+    try:
+        p = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", "-T", "git@" + host],
+                           capture_output=True, text=True, timeout=12, stdin=subprocess.DEVNULL,
+                           encoding="utf-8", errors="replace")
+    except (OSError, subprocess.SubprocessError):
+        return None
+    text = (p.stdout + p.stderr).lower()
+    if re.search(r"successfully authenticated|welcome to gitlab|authenticated via|logged in as|hi there", text):
+        return True
+    return False if re.search(r"permission denied|publickey", text) else None
+
+
+def sign_in_help(repo: Path, remote: str, url: Optional[str], borrowed: Optional[str], asked: bool) -> dict:
+    """Why the server said no, as far as this machine shows it, and what the user can do about it."""
+    transport, host, path = _transport(url)
+    helpers = sorted(set(filter(None, (out(repo, "config", "--get-all", "credential.helper") or "").splitlines()
+                                + [out(repo, "config", "--get-urlmatch", "credential.helper", url or "") or ""])))
+    facts = {"transport": transport, "host": host, "credential_helpers": helpers,
+             "password_program": os.path.basename(borrowed) if borrowed else None, "asked": asked}
+    options = []
+    where = host or "the server"
+    if transport in ("http", "https"):
+        facts["why"] = ("git has no saved sign-in for %s here: no credential helper is configured" % where
+                        if not helpers else
+                        "the credential helper (%s) had nothing the server accepts for %s" % (", ".join(helpers), where))
+        accepted = _ssh_accepted(host) if host else None
+        facts["ssh_key_accepted"] = accepted
+        if accepted and path:
+            options.append({"what": "use the SSH key this machine already has for %s" % where,
+                            "run": "git remote set-url %s git@%s:%s" % (remote, host, path),
+                            "then": "call the skill again"})
+        cli = "gh" if host and "github" in host else "glab" if host and "gitlab" in host else None
+        if cli and shutil.which(cli):
+            options.append({"what": "sign git in through the %s CLI" % cli,
+                            "run": "%s auth login" % cli if cli == "glab" else "gh auth login && gh auth setup-git",
+                            "then": "call the skill again"})
+        if borrowed and not asked:
+            options.append({"what": "let your desktop's password window (%s) ask you, and remember the answer"
+                                    % os.path.basename(borrowed),
+                            "run": "call the skill again with `ask`",
+                            "then": "enter your user name and a personal access token, not your account password"})
+        options.append({"what": "save a sign-in for git yourself" if not helpers else "refresh the saved sign-in",
+                        "run": "run `git push` once in your own terminal"
+                               + ("" if helpers else " after setting up a credential helper (git help credentials)"),
+                        "then": "call the skill again"})
+    elif transport == "ssh":
+        facts["why"] = "%s did not accept an SSH key from this machine" % where
+        options.append({"what": "load your key into the SSH agent, or add its public key to your account on %s" % where,
+                        "run": "ssh-add" + ("  &&  ssh -T git@%s" % host if host else ""), "then": "call the skill again"})
+    else:
+        facts["why"] = "the remote refused the push"
+    return {"sign_in": facts, "options": options}
+
+
 def _classify(text: str) -> Tuple[str, str]:
     low = text.lower()
     if re.search(r"fetch first|non-fast-forward|tip of your current branch is behind|updates were rejected because the remote", low):
@@ -671,9 +764,10 @@ def _classify(text: str) -> Tuple[str, str]:
                             "Bring them in (git pull --rebase), then call the skill again")
     if re.search(r"protected branch|gh006|pre-receive hook declined|you are not allowed to push|remote rejected", low):
         return "refused", "the server refused the push (protected branch or a server rule); push a branch and open a request"
-    if re.search(r"authentication failed|could not read username|permission denied|terminal prompts disabled|"
-                 r"access denied|not authorized|\b40[13]\b|repository not found", low):
-        return "auth", "the server did not accept your credentials; sign in to it (credential helper or SSH key) and try again"
+    if re.search(r"authentication failed|could not read username|could not read password|permission denied|"
+                 r"terminal prompts disabled|invalid username or (token|password)|access denied|not authorized|"
+                 r"\b40[13]\b|repository not found", low):
+        return "auth", "the server did not accept a sign-in from this machine"
     if re.search(r"could not resolve host|unable to access|connection (timed out|refused|reset)|network is unreachable|"
                  r"timed out|failed to connect|could not read from remote", low):
         return "offline", "the server could not be reached; the commits are safe locally, push again when you are online"
@@ -717,12 +811,17 @@ def cmd_push(args) -> dict:
     else:
         count = int(out(repo, "rev-list", "--count", "HEAD", "--not", "--remotes=%s" % remote) or 0)
         cmd = ["push", "--porcelain"] + ([] if info["upstream"] else ["--set-upstream"]) + [remote, branch]
-    code, stdout, stderr = git(repo, *cmd, timeout=args.timeout, english=True)
+    guard, borrowed = prompt_guard(repo, args.ask)
+    code, stdout, stderr = git(repo, *cmd, timeout=args.timeout, english=True, extra_env=guard)
     text = "\n".join(x for x in (stdout.strip(), stderr.strip()) if x)
     if code != 0:
         status, hint = _classify(text) if code != 124 else ("offline", "the push timed out; the commits are safe locally")
-        return {"ok": False, "status": status, "pushed": False, "text": hint, "branch": branch, "remote": remote,
-                "url": info["url"], "unpushed": count, "output": text[-1200:], "remaining": remaining}
+        failed = {"ok": False, "status": status, "pushed": False, "text": hint, "branch": branch, "remote": remote,
+                  "url": info["url"], "unpushed": count, "output": text[-1200:], "remaining": remaining}
+        if status == "auth":
+            failed.update(sign_in_help(repo, remote, info["url"], borrowed, args.ask))
+            failed["text"] = "%s; nothing was pushed and the commits are safe locally" % failed["sign_in"]["why"]
+        return failed
     now = remote_info(repo, branch)
     links = re.findall(r"https?://\S+", "\n".join(ln for ln in stderr.splitlines() if ln.startswith("remote:")))
     return {"ok": True, "status": "pushed", "pushed": True, "branch": branch, "remote": remote,
@@ -758,6 +857,8 @@ def main(argv=None) -> int:
     s = sub.add_parser("push")
     s.add_argument("--since", help="check the commits made since this revision before pushing")
     s.add_argument("--remote", help="push to this remote instead of the branch's own")
+    s.add_argument("--ask", action="store_true",
+                   help="let git open the system's password window; only when the user asked for it")
     s.add_argument("--timeout", type=int, default=180, help="seconds (default 180)")
     s.set_defaults(fn=cmd_push)
 

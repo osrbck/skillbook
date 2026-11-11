@@ -45,6 +45,9 @@ Dışarıda bırakılanlar: .env (kimlik bilgisi dosyası) · debug.log (.gitign
   dosyalar ve çöpler (`node_modules`, `.DS_Store`, önbellekler) dışarıda bırakılır ve listelenir.
 - **Sunucu fark etmez.** GitHub, GitLab, Bitbucket ya da kendi sunucun: projenin zaten bağlı
   olduğu uzak depoya düz bir `git push` yapar. Yeni dal aynı adla yayımlanır.
+- **Habersiz parola penceresi yok.** Git'in zaten sahip olduğu oturumla gönderir (kimlik
+  yardımcısı, SSH anahtarı, SSH ajanı). Oturum yoksa pencere açmaz: durur, nedenini söyler ve
+  en kolayından başlayarak seçeneklerini sıralar.
 - **Bağlantı yoksa.** Uzak depo yoksa yalnızca yerelde commit atar ve nasıl ekleneceğini söyler.
   Klasör henüz bir depo değilse önce `git init` çalıştırır.
 
@@ -96,6 +99,7 @@ Kurulum, commit'lerinin taşıyacağı adı ve e-postayı gösterir. Güncelleme
 /gitcommit plan                 atacağı commit'leri gösterir; hiçbir şeyi değiştirmez
 /gitcommit include .env.test    işaretlenmiş bir dosyayı da commit'ler
 /gitcommit türkçe               geçmiş hangi dilde olursa olsun bu dilde yazar
+/gitcommit sor                  oturum eksikse sisteminin parola penceresinin sormasına izin verir
 /gitcommit kupon özelliği       klasörde zaten duran işe dair ipucu
 /gitcommit ödeme sayfasına kupon desteği ekle
                                 görev: işi yapar, sonra commit'ler ve gönderir
@@ -122,6 +126,26 @@ fark etmez. Yeni depoda İngilizce yazar; çağrıda belirttiğin dil (`/gitcomm
 adındaki iş numarası yalnızca geçmişin zaten kullandığı biçimde yazılır. `Signed-off-by`,
 yalnızca geçmişi bunu kullanan depolarda ve senin adına eklenir.
 
+## Sunucu oturum isterse
+
+Ajanın kabuğu her zaman senin oturum açtığın yerde oturum açmış değildir. Bir proje IDE'nde ya
+da bir masaüstü uygulamasında bağlı olabilir ama düz `git push` için oturumu olmayabilir: uzak
+depo HTTPS'tir ve kimlik yardımcısı ayarlı değildir. Bu durumda git, masaüstünün parola
+programına düşer ve çalışmanın ortasında bir kullanıcı adı ve şifre penceresi açar. gitcommit
+buna izin vermez. Commit'ler atılır, push durur ve nedenini seçeneklerinle birlikte görürsün:
+
+```
+4 commit atıldı; push durdu: bu ortamda github.com için kayıtlı oturum yok
+1. Bu makinedeki SSH anahtarını kullan:   git remote set-url origin git@github.com:sen/app.git
+2. Ya da parola pencerenin sormasına izin ver:   /gitcommit sor
+3. Ya da kendi terminalinde bir kez `git push` çalıştır
+```
+
+Sunucunun elindeki SSH anahtarını kabul edip etmediğine bakar ve varsa önce onu önerir. Sohbette
+asla parola ya da token istemez, uzak depo adresini kendiliğinden değiştirmez. Git için bilerek
+kurduğun her şey olduğu gibi kullanılır: kimlik yardımcıları, `GIT_ASKPASS`, `core.askPass`, SSH
+anahtarları ve ajanları.
+
 ## Claude Code ve ortak yazar satırı
 
 Claude Code commit'lere varsayılan olarak `Co-Authored-By` satırı ekler. Bu skill kendi
@@ -147,7 +171,9 @@ $G push --since <commit>                               # denetler, sonra gönder
 ## Gizlilik
 
 Yardımcı, git'i kendi bilgisayarında çalıştırır ve push sırasında yalnızca senin uzak deponla
-konuşur. Başka hiçbir ağ isteği yapmaz. Ajan, işi adlandırmak için ihtiyaç duyduğu diff'leri
+konuşur. Push oturum eksikliğinden reddedilirse aynı sunucuya bir kez SSH anahtarını kabul edip
+etmediğini sorar (`ssh -T`). Başka hiçbir ağ isteği yapmaz; hiçbir kimlik bilgisini okumaz ya da
+saklamaz. Ajan, işi adlandırmak için ihtiyaç duyduğu diff'leri
 okur; bunlar o ajanla konuşmanın parçası olur. İşaretlenen gizli anahtarlar türü ve satırıyla
 bildirilir, değeri asla yazılmaz.
 

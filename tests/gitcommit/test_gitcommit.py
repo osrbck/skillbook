@@ -7,7 +7,9 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -435,6 +437,70 @@ class PushTest(Base):
         code, d = self.run_cli("push", "--since", "root", "--remote", "gitlab")
         self.assertEqual((code, d["status"], d["remote"]), (0, "pushed", "gitlab"))
         self.assertEqual(self.remote_log(b), ["chore: start the project"])
+
+
+class _Refuse(BaseHTTPRequestHandler):
+    """A git server over HTTP that wants a sign-in and accepts none."""
+
+    def _no(self):
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="git"')
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    do_GET = do_POST = _no
+
+    def log_message(self, *args):
+        pass
+
+
+class SignInTest(Base):
+    """A push must not open a password window nobody asked for, and must say why it failed."""
+
+    def setUp(self):
+        super().setUp()
+        self.server = HTTPServer(("127.0.0.1", 0), _Refuse)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+        self.git("remote", "add", "origin", "http://127.0.0.1:%d/team/app.git" % self.server.server_port)
+        self.asked = self.tmp / "asked.txt"
+        self.window = self.tmp / "password-window"       # stands in for ksshaskpass, ssh-askpass …
+        self.window.write_text("#!/bin/sh\necho \"$1\" >> %s\necho someone\n" % self.asked)
+        self.window.chmod(self.window.stat().st_mode | stat.S_IEXEC)
+
+    def test_the_desktop_password_window_is_not_opened_by_a_push(self):
+        code, d = self.run_cli("push", "--since", "root", env={"SSH_ASKPASS": str(self.window)})
+        self.assertEqual((code, d["status"], d["pushed"], d["unpushed"]), (1, "auth", False, 1))
+        self.assertFalse(self.asked.exists(), "nothing was asked")
+        s = d["sign_in"]
+        self.assertEqual((s["transport"], s["host"], s["credential_helpers"], s["password_program"]),
+                         ("http", "127.0.0.1", [], "password-window"))
+        self.assertIn("no credential helper is configured", d["text"])
+        self.assertIn("commits are safe locally", d["text"])
+        self.assertTrue([o for o in d["options"] if "`ask`" in o["run"]], d["options"])
+
+    def test_ask_lets_the_window_appear(self):
+        code, d = self.run_cli("push", "--since", "root", "--ask", env={"SSH_ASKPASS": str(self.window)})
+        self.assertEqual((code, d["status"]), (1, "auth"))
+        self.assertIn("Username for 'http://127.0.0.1", self.asked.read_text())
+        self.assertFalse([o for o in d["options"] if "`ask`" in o["run"]], "not offered twice")
+
+    def test_a_password_program_set_up_for_git_is_left_alone(self):
+        code, d = self.run_cli("push", "--since", "root", env={"GIT_ASKPASS": str(self.window)})
+        self.assertEqual(d["status"], "auth")
+        self.assertTrue(self.asked.exists(), "GIT_ASKPASS is the user's own setup and is used")
+        self.assertIsNone(d["sign_in"]["password_program"])
+        self.asked.unlink()
+        self.git("config", "core.askPass", str(self.window))
+        self.run_cli("push", "--since", "root", env={"SSH_ASKPASS": "/nonexistent"})
+        self.assertTrue(self.asked.exists(), "so is core.askPass")
+
+    def test_a_configured_helper_is_named_when_it_has_nothing(self):
+        self.git("config", "credential.helper", "cache")
+        code, d = self.run_cli("push", "--since", "root")
+        self.assertEqual((d["status"], d["sign_in"]["credential_helpers"]), ("auth", ["cache"]))
+        self.assertIn("credential helper (cache) had nothing", d["text"])
 
 
 if __name__ == "__main__":

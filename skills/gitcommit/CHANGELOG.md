@@ -28,4 +28,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 - Push to the remote the project already has, on any host; a new branch is published with the
   same name; never forced. Without a remote the commits stay local, and a folder without git
   gets `git init`
-- Arguments: `no push`, `staged`, `single`, `plan`, `include <path>`
+- A push never opens a password window on its own: git's fallback to the desktop's SSH
+  passphrase program (`SSH_ASKPASS`) and Git Credential Manager's interactive mode are switched
+  off unless the call says `ask`; helpers, `GIT_ASKPASS`, `core.askPass` and SSH are used as set up
+- A refused sign-in is explained (`sign_in`: transport, host, helpers, whether the server accepts
+  an SSH key this machine has) with the options to fix it, easiest first
+- Arguments: `no push`, `staged`, `single`, `plan`, `include <path>`, `ask`, a language

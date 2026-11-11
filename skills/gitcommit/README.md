@@ -44,6 +44,9 @@ Left out: .env (credentials file) · debug.log (belongs in .gitignore)
   (`node_modules`, `.DS_Store`, caches) are left out and listed.
 - **Any server.** GitHub, GitLab, Bitbucket, a self-hosted remote: it is a plain `git push` to
   the remote the project already has. A new branch is published with the same name.
+- **No surprise password windows.** It pushes with the sign-in git already has (credential
+  helper, SSH key, SSH agent). When there is none, it does not pop up a dialog: it stops, says
+  why, and lists what you can do, starting with the easiest.
 - **No remote, no problem.** Without a remote it commits locally and tells you how to add one.
   In a folder that is not a repository yet, it runs `git init` first.
 
@@ -95,6 +98,7 @@ The installer shows the name and email your commits will carry. Update with
 /gitcommit plan                 show the commits it would make; change nothing
 /gitcommit include .env.test    commit a path that was flagged
 /gitcommit in English           this language, whatever the history uses
+/gitcommit ask                  let your system's password window ask you when a sign-in is missing
 /gitcommit the coupon feature   a hint about work that is already in the tree
 /gitcommit add coupon support to checkout
                                 a task: do the work, then commit and push it
@@ -121,6 +125,26 @@ you name in the call (`/gitcommit in English`) wins. The verb form follows the h
 (`add` or `added`). An issue key from the branch name is used only in the form your history already uses.
 `Signed-off-by` is added, as you, only in repositories whose history uses it.
 
+## When the server wants a sign-in
+
+An agent's shell is not always signed in where you are. A project can be connected in your IDE
+or a desktop app and still have no sign-in for plain `git push`: the remote is HTTPS and no
+credential helper is configured. In that case git would fall back to your desktop's password
+program and open a username and password window in the middle of the run. gitcommit does not
+let that happen. The commits are made, the push stops, and you get the reason and your options:
+
+```
+Committed 4 commits; push stopped: git has no saved sign-in for github.com here
+1. Use the SSH key this machine already has:  git remote set-url origin git@github.com:you/app.git
+2. Or let your password window ask you:        /gitcommit ask
+3. Or run `git push` once in your own terminal
+```
+
+It checks whether the server accepts an SSH key you already have and offers that first. It never
+asks for a password or token in the chat and never changes a remote on its own. What you set up
+for git on purpose is always used as it is: credential helpers, `GIT_ASKPASS`, `core.askPass`,
+SSH keys and agents.
+
 ## Claude Code and the co-author line
 
 Claude Code adds a `Co-Authored-By` trailer to commits by default. This skill overrides that for
@@ -145,8 +169,9 @@ $G push --since <commit>                               # check, then push; never
 
 ## Privacy
 
-The helper runs git on your machine and talks to your own remote when it pushes. It makes no
-other network request. The agent reads the diffs it needs to name the work, so they become part
+The helper runs git on your machine and talks to your own remote when it pushes. When a push is
+refused for a missing sign-in, it asks the same server once whether it accepts your SSH key
+(`ssh -T`). It makes no other network request and never reads or stores a credential. The agent reads the diffs it needs to name the work, so they become part
 of your conversation with that agent; flagged secrets are reported by kind and line, never by
 value.
 
