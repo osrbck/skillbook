@@ -1,7 +1,7 @@
 # worklog
 
 **Turn your AI coding sessions into a work report.** `/worklog` reads the sessions you ran in
-Claude Code, Codex, Kiro and OpenCode/OpenChamber on your machine and writes a bullet list of what
+Claude Code, Codex, Antigravity, Kiro and OpenCode/OpenChamber on your machine and writes a bullet list of what
 got done in a period, grouped by project, with time estimates, commits and issue keys.
 
 > 🇹🇷 Türkçe: [README.tr.md](README.tr.md)
@@ -30,7 +30,7 @@ Total ≈5h 40m · 6 commits · Claude Code, Codex, Kiro
 /worklog <range>
    │
    ├─ 1. collector (Python, stdlib only, read-only)
-   │     adapters ── claude · codex · kiro · opencode
+   │     adapters ── claude · codex · agy · kiro · opencode
    │     → one model: project, branch, your requests, files edited, notable commands,
    │       final agent reply, activity timestamps
    │     → secrets masked, injected context stripped, subagent/workflow threads folded in
@@ -54,6 +54,7 @@ Total ≈5h 40m · 6 commits · Claude Code, Codex, Kiro
 |---|---|---|
 | Claude Code | `~/.claude/projects/**/*.jsonl` (incl. subagents) | ✅ tested |
 | Codex (CLI and IDE) | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` | ✅ tested |
+| Antigravity (app, IDE and CLI) | `~/.gemini/antigravity*/conversations/*.db` | 🧪 experimental |
 | Kiro (IDE and CLI) | `~/.kiro/sessions/*/sess_*/` (incl. workflow runs) | ✅ tested |
 | OpenCode / OpenChamber | `~/.local/share/opencode` (JSON storage or SQLite) | 🧪 experimental |
 
@@ -62,13 +63,14 @@ and `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME` and `XDG_DATA_HOME` are honor
 
 ## Install
 
-Requirements: Python 3.8+, git, and Claude Code or Codex. macOS, Linux and WSL.
+Requirements: Python 3.8+, git, and one of Claude Code, Codex, Antigravity or Kiro to run it in.
+macOS, Linux and WSL.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
 ~/skillbook/install.sh worklog          # Claude Code
-~/skillbook/install.sh worklog --codex  # Codex
-~/skillbook/install.sh worklog --all    # Claude Code, Codex and Antigravity
+~/skillbook/install.sh worklog --codex  # Codex (also: --agy for Antigravity, --kiro for Kiro)
+~/skillbook/install.sh worklog --all    # Claude Code, Codex, Antigravity and Kiro
 ```
 
 The installer prints which session sources it found. Update with
@@ -110,7 +112,7 @@ Optional. Create `~/.config/worklog/config.json`; every key is optional:
 
 ```json
 {
-  "sources": ["claude", "codex", "kiro", "opencode"],
+  "sources": ["claude", "codex", "agy", "kiro", "opencode"],
   "paths": { "codex": "/mnt/d/Users/me/.codex" },
   "exclude_projects": ["*/clients/secret-*", "dotfiles"],
   "idle_minutes": 30,

@@ -1,6 +1,6 @@
 ---
 name: worklog
-description: Scans local AI coding sessions (Claude Code, Codex, Kiro, OpenCode/OpenChamber) for a time range and writes a bullet-point report of the work done, grouped by project with time estimates, commits and issue keys. Use when the user runs /worklog or asks what they worked on in a period.
+description: Scans local AI coding sessions (Claude Code, Codex, Antigravity, Kiro, OpenCode/OpenChamber) for a time range and writes a bullet-point report of the work done, grouped by project with time estimates, commits and issue keys. Use when the user runs /worklog or asks what they worked on in a period.
 disable-model-invocation: true
 ---
 
@@ -30,8 +30,10 @@ Extra filters the user may give: a project name → `--project <text>`; only som
 
 ## 2. Run the collector
 
-The collector is `scripts/worklog.py` in this skill's directory (usually
-`~/.claude/skills/worklog/scripts/worklog.py`, or `~/.codex/skills/worklog/...` in Codex).
+The collector is `scripts/worklog.py` in this skill's directory, wherever your agent keeps its
+skills (`~/.claude/skills/worklog/` in Claude Code, `~/.codex/skills/worklog/` in Codex,
+`~/.gemini/config/skills/worklog/` in Antigravity, `~/.kiro/skills/worklog/` in Kiro). It reads
+the sessions of all of them, whichever one you are running in.
 It needs only Python 3.8+ and git, reads files read-only, and prints JSON to stdout.
 
 ```bash

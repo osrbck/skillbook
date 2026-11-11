@@ -9,7 +9,7 @@ from typing import List, Optional
 
 @dataclass
 class Session:
-    tool: str                      # "claude", "codex", "kiro", "opencode"
+    tool: str                      # "claude", "codex", "agy", "kiro", "opencode"
     session_id: str
     cwd: Optional[str] = None      # working directory the session ran in
     title: Optional[str] = None

@@ -59,6 +59,50 @@ class Fixture:
         self.kiro()
         self.opencode_json()
         self.opencode_sqlite()
+        self.antigravity()
+
+    def antigravity(self):
+        """One conversation database, in the layout Antigravity writes (protobuf inside SQLite)."""
+        def varint(n):
+            out = b""
+            while True:
+                n, low = n >> 7, n & 0x7F
+                out += bytes([low | (0x80 if n else 0)])
+                if not n:
+                    return out
+
+        def field(number, value):
+            if isinstance(value, int):
+                return varint(number << 3) + varint(value)
+            value = value.encode() if isinstance(value, str) else value
+            return varint(number << 3 | 2) + varint(len(value)) + value
+
+        def meta(minutes, tool=None, args=None):
+            stamp = field(1, field(1, int((T0 + timedelta(minutes=minutes)).timestamp())) + field(2, 5))
+            call = field(4, field(1, "call-1") + field(2, tool) + field(3, json.dumps(args))) if tool else b""
+            return stamp + field(3, 4) + call
+
+        d = self.home / ".gemini/antigravity-cli/conversations"
+        d.mkdir(parents=True)
+        con = sqlite3.connect(d / "agy-conv-1.db")
+        con.execute("CREATE TABLE steps (idx INTEGER, step_type INTEGER, status INTEGER, metadata BLOB, step_payload BLOB)")
+        con.execute("CREATE TABLE trajectory_metadata_blob (id TEXT, data BLOB)")
+        con.execute("INSERT INTO trajectory_metadata_blob VALUES ('main', ?)",
+                    (field(1, field(1, "file://" + str(self.repo)) + field(2, "x")),))
+        steps = [
+            (14, meta(40), field(1, 14) + field(19, field(2, "add a wishlist button to the product page SHOP-45"))),
+            (15, meta(41), field(1, 15) + field(20, field(1, "") + field(3, "thinking about it"))),
+            (5, meta(42, "replace_file_content", {"TargetFile": str(self.repo / "wishlist.ts"), "TargetContent": "a"}), field(1, 5)),
+            (5, meta(43, "write_to_file", {"TargetFile": str(self.repo / "wishlist.test.ts"), "CodeContent": "b"}), field(1, 5)),
+            (8, meta(44, "view_file", {"AbsolutePath": str(self.repo / "cart.ts")}), field(1, 8)),
+            (21, meta(45, "run_command", {"CommandLine": "npm run test -- wishlist", "Cwd": str(self.repo)}), field(1, 21)),
+            (15, meta(46), field(1, 15) + field(20, field(1, "Wishlist button added and tested.") + field(3, "t"))),
+            (14, meta(-600), field(1, 14) + field(19, field(2, "an old request outside the range"))),
+            (99, b"\xff\xff\xff", b"\x07garbage"),
+        ]
+        con.executemany("INSERT INTO steps VALUES (?, ?, 3, ?, ?)", [(i, t, m, p) for i, (t, m, p) in enumerate(steps)])
+        con.commit()
+        con.close()
 
     def claude(self):
         base = dict(sessionId="c-1", cwd=str(self.repo), gitBranch="feat/SHOP-42-cart")
@@ -247,6 +291,14 @@ class WorklogTest(unittest.TestCase):
         self.assertEqual(s["commands"], ["npm run build"])
         self.assertEqual(s["subtasks"], ["checkout-impl"])
 
+    def test_antigravity(self):
+        (s,) = self.sessions_of("agy")
+        self.assertEqual(s["prompts"], ["add a wishlist button to the product page SHOP-45"])
+        self.assertEqual(s["files"], ["wishlist.ts", "wishlist.test.ts"], "edits only, not the file that was read")
+        self.assertEqual(s["commands"], ["npm run test -- wishlist"])
+        self.assertEqual(s["last_reply"], "Wishlist button added and tested.")
+        self.assertEqual(self.stats["agy"].get("errors"), None, "unreadable steps are skipped, not reported as errors")
+
     def test_opencode_json_and_sqlite(self):
         titles = {s["title"]: s for s in self.sessions_of("opencode")}
         self.assertEqual(titles["Refactor api"]["files"], ["api.ts"])
@@ -259,7 +311,7 @@ class WorklogTest(unittest.TestCase):
         self.assertEqual([c["subject"] for c in p["commits"]], ["SHOP-42 add cart total"])
         self.assertEqual(p["issue_keys"][0], "SHOP-42")
         self.assertIn("SHOP-43", p["issue_keys"])
-        self.assertEqual(p["tools"], ["claude", "codex", "kiro", "opencode"])
+        self.assertEqual(p["tools"], ["agy", "claude", "codex", "kiro", "opencode"])
         self.assertGreater(p["active_minutes"], 0)
 
     def test_out_of_range_is_ignored(self):

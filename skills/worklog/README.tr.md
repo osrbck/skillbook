@@ -1,7 +1,7 @@
 # worklog
 
 **AI kodlama oturumlarını iş raporuna dönüştürür.** `/worklog`, bilgisayarında Claude Code, Codex,
-Kiro ve OpenCode/OpenChamber ile yaptığın oturumları okur; belirttiğin sürede yapılan işleri proje
+Antigravity, Kiro ve OpenCode/OpenChamber ile yaptığın oturumları okur; belirttiğin sürede yapılan işleri proje
 bazında, süre tahmini, commit'ler ve issue anahtarlarıyla madde madde yazar.
 
 > 🇬🇧 English: [README.md](README.md)
@@ -27,7 +27,7 @@ Toplam ≈5s 40dk · 6 commit · Claude Code, Codex, Kiro
 /worklog <aralık>
    │
    ├─ 1. toplayıcı (Python, sadece standart kütüphane, salt-okur)
-   │     adapter'lar ── claude · codex · kiro · opencode
+   │     adapter'lar ── claude · codex · agy · kiro · opencode
    │     → ortak model: proje, branch, senin istekler, düzenlenen dosyalar, önemli komutlar,
    │       ajanın son cevabı, aktivite zaman damgaları
    │     → gizli bilgiler maskelenir, enjekte edilen bağlam temizlenir, alt ajan ve
@@ -51,6 +51,7 @@ Toplam ≈5s 40dk · 6 commit · Claude Code, Codex, Kiro
 |---|---|---|
 | Claude Code | `~/.claude/projects/**/*.jsonl` (alt ajanlar dahil) | ✅ test edildi |
 | Codex (CLI ve IDE) | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` | ✅ test edildi |
+| Antigravity (uygulama, IDE ve CLI) | `~/.gemini/antigravity*/conversations/*.db` | 🧪 deneysel |
 | Kiro (IDE ve CLI) | `~/.kiro/sessions/*/sess_*/` (workflow çalıştırmaları dahil) | ✅ test edildi |
 | OpenCode / OpenChamber | `~/.local/share/opencode` (JSON veya SQLite) | 🧪 deneysel |
 
@@ -59,13 +60,14 @@ Kurulu olmayan araçlar atlanır. Konumlar ayarlardan değiştirilebilir; `CLAUD
 
 ## Kurulum
 
-Gereksinimler: Python 3.8+, git ve Claude Code veya Codex. macOS, Linux ve WSL.
+Gereksinimler: Python 3.8+, git ve içinde çalıştırmak için Claude Code, Codex, Antigravity ya da
+Kiro'dan biri. macOS, Linux ve WSL.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
 ~/skillbook/install.sh worklog          # Claude Code
-~/skillbook/install.sh worklog --codex  # Codex
-~/skillbook/install.sh worklog --all    # Claude Code, Codex ve Antigravity
+~/skillbook/install.sh worklog --codex  # Codex (ayrıca: Antigravity için --agy, Kiro için --kiro)
+~/skillbook/install.sh worklog --all    # Claude Code, Codex, Antigravity ve Kiro
 ```
 
 Kurulum betiği hangi oturum kaynaklarını bulduğunu listeler. Güncelleme:

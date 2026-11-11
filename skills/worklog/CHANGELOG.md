@@ -4,6 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-11
+
+### Added
+- Antigravity adapter (experimental): reads the conversation databases of the app, the IDE and
+  the CLI (`~/.gemini/antigravity*/conversations/*.db`): requests, edited files, commands, the
+  final answer and activity times
+- Runs in all four hosts: Claude Code, Codex, Antigravity and Kiro (`install.sh --agy`, `--kiro`)
+
 ## [0.1.0] - 2026-11-06
 
 ### Added

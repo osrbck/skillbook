@@ -9,6 +9,6 @@ Adapters must be read-only, tolerate unknown/changed record shapes (skip, never 
 and only emit activity that falls inside [start, end).
 """
 
-from . import claude, codex, kiro, opencode
+from . import agy, claude, codex, kiro, opencode
 
-ADAPTERS = {m.NAME: m for m in (claude, codex, kiro, opencode)}
+ADAPTERS = {m.NAME: m for m in (claude, codex, agy, kiro, opencode)}

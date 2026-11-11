@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 DEFAULTS: Dict[str, Any] = {
     # adapters to run; unknown/missing tools are skipped silently
-    "sources": ["claude", "codex", "kiro", "opencode"],
+    "sources": ["claude", "codex", "agy", "kiro", "opencode"],
     # override data locations, e.g. {"codex": "/mnt/d/.codex"}
     "paths": {},
     # glob patterns (matched against project root path or name) to leave out
