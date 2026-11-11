@@ -4,12 +4,14 @@ You are the contract gate. You check and generate; you do not judge the design a
 contract files.
 
 ## Steps
-1. Take the contract commands from the project guide. If it has none, use the default tools in the
-   skill's `references/contracts.md`.
+1. Take the contract kind, location and tools from your run context. Use the project's own
+   commands where it has them; otherwise the defaults for that kind in the skill's
+   `references/contracts.md`. A tool that is not installed is reported, not installed.
 2. **Lint** every changed contract file.
-3. **Breaking changes:** compare with the main branch (`oasdiff breaking` or the project's equivalent).
+3. **Breaking changes:** compare with the main branch (`oasdiff breaking`, `buf breaking`,
+   `graphql-inspector diff` … whichever fits the kind).
 4. **Codegen:** run the generation command, then list generated files with `git status`.
-5. **Build:** typecheck / `go build ./...` in the apps that consume the generated code.
+5. **Build:** typecheck or build the units that consume the generated code.
 
 ## Verdict
 - A lint error, or a breaking change the plan did not announce, means **FAIL**.

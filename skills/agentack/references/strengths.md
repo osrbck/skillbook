@@ -22,8 +22,9 @@ its agent loop is unreliable.
 | Kiro | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 |
 
 Roles map to kinds of work: decider → decide · architect → plan · reviewer → review ·
-be-go, be-node → backend · fe-next, fe-angular → frontend · qa → test ·
-scout, contract-guard → mechanical. `visual` is a specialty asked for with `--skill visual`.
+backend (be-go, be-java …) → backend · frontend (fe-angular, fe-next, fs-next …) → frontend · qa → test ·
+scout, contract-guard → mechanical · backend-architect → plan · designer → visual. `visual` is a specialty: the designer
+always runs on the provider rated best at it, and a review can ask for it with `--skill visual`.
 
 ## How ratings are used
 
@@ -38,7 +39,7 @@ scout, contract-guard → mechanical. `visual` is a specialty asked for with `--
 5. **Setup shows the scorecard** and suggests an order, so the choice is yours and informed.
 
 Change a rating with `setup --rate agy:backend=3`. A chain you set by hand
-(`setup --role be-go=agy,claude`) always wins.
+(`setup --role backend=agy,claude`) always wins.
 
 ## Evidence
 
@@ -56,8 +57,11 @@ Each one below names what it rests on. "Inferred" means there is no direct bench
 **Codex** (GPT-6 Astra · GPT-6.1 Sol · GPT-6 Luna)
 - decide 5: Astra is level with the other frontier models on the intelligence index and leads
   FrontierSWE 2.
-- backend 4, test 4, plan 4, review 4: Sol is the Codex default and reported "near" Astra on
-  agentic coding; no independent Terminal-Bench figure, so it is not rated 5.
+- plan 4, review 4: Astra plans and reviews (Sol only where an account has no Astra). It matches
+  the frontier on the intelligence index but trails Claude on Terminal-Bench 4.0 (57.9%), so it
+  is not rated 5.
+- backend 4, test 4: Sol builds; it is the Codex default and reported "near" Astra on agentic
+  coding, with no independent Terminal-Bench figure.
 - frontend 4, visual 4: Astra leads the Frontend Code Arena, but build work runs on Sol.
 - mechanical 3: Luna is cheap and scores well on DeepSWE (66.6%) but low on Terminal-Bench 4.0
   (16.4%): fine for rule-following batches, not for open-ended loops.

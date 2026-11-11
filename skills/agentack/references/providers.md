@@ -9,8 +9,8 @@ selected provider.
 | Tier | Purpose | Roles |
 |---|---|---|
 | **S4** | decisions that are expensive to reverse | decider |
-| **S3** | planning and review | conductor (your session), architect, reviewer |
-| **S2** | building | be-go, be-node, fe-next, fe-angular, qa |
+| **S3** | planning, design and review | conductor (your session), architect, backend-architect, designer, reviewer |
+| **S2** | building | backend, frontend (as be-/fe-/fs-<stack> for the project), qa |
 | **S1** | mechanical work | scout, contract-guard |
 
 ## Default models
@@ -18,12 +18,15 @@ selected provider.
 | Provider | S4 | S3 | S2 | S1 | Can conduct |
 |---|---|---|---|---|---|
 | `claude` Claude Code | fable | opus | sonnet | haiku | yes |
-| `codex` Codex | gpt-6-astra (high) | gpt-6.1-sol (high) | gpt-6.1-sol (medium) | gpt-6-luna (low) | yes |
+| `codex` Codex | gpt-6-astra (high) | gpt-6-astra (medium), else gpt-6.1-sol (high) | gpt-6.1-sol (medium) | gpt-6-luna (low) | yes |
 | `agy` Antigravity | Gemini 4 Karbon, else Argon | Gemini 4 Argon, else 3.1 Pro | Gemini 3.1 Pro | Gemini 3.8 Flash | yes (app, IDE, CLI) |
 | `cursor` Cursor | — name one | — name one | Composer | Auto | no |
 | `kiro` Kiro | — name one | — name one | Auto | Auto | planned |
 
-- OpenAI has three models for four tiers, so S3 and S2 share Sol and differ in reasoning effort.
+- On Codex, Astra is the plan-and-review model as well as the decider: it is the model on a par
+  with Opus. Decisions use high reasoning effort, planning and review medium. Sol builds. On an
+  account without Astra (a ChatGPT login, for example) Sol at high effort stands in at S3 and is
+  briefed step by step.
 - Antigravity is placed where Gemini is strong: Argon plans, reviews and reads anything visual,
   and Karbon decides where an account has it (otherwise Argon does). Its build and mechanical
   tiers sit one model higher than its menu suggests (3.1 Pro and 3.8 Flash), Flash-Lite class
@@ -43,7 +46,7 @@ Models differ in how much they want spelled out. Each tier of each provider has 
 |---|---|---|
 | `goal` | goal, context, constraints, what done looks like | S3 on Claude (Opus), Antigravity (Argon, 3.1 Pro) |
 | `structured` | named files, steps, output shape, boundaries | S2 on Claude (Sonnet), Antigravity (3.1 Pro), Cursor Composer |
-| `explicit` | every step in order, nothing implicit | S3 and S2 on Codex (GPT-6.1 Sol), any Auto router |
+| `explicit` | every step in order, nothing implicit | GPT-6.1 Sol on Codex (S2, and S3 where it stands in for Astra), any Auto router |
 | `rules` | exact rule set with input/output examples, small batches, spot checks | S1 everywhere (Haiku, GPT-6 Luna, Gemini 3.8 Flash) |
 | `peer` | the open question plus the evidence | S4 everywhere (Fable, GPT-6 Astra, Gemini 4 Karbon) |
 
@@ -125,6 +128,24 @@ In Claude Code, workers on the `claude` provider run as the host's own subagents
 instead of a child process: they start faster and show up in the UI. Turn this off with
 `setup --native off`.
 
+## Images
+
+Agentack has no image model of its own. `image` asks a selected provider's CLI to generate one
+raster image and save it; it is **experimental**, because it relies on each CLI's own image tool.
+
+| Provider | How | Notes |
+|---|---|---|
+| Codex | `codex exec --enable image_generation …` (the built-in `image_gen` tool) | the file is picked up from the run folder or `~/.codex/generated_images/`; older Codex versions need `image_generation` enabled in `~/.codex/config.toml` |
+| Antigravity | a normal `agy -p` run that is told to generate and save one image | needs an account with image generation; about a minute per image |
+| Claude Code, Cursor, Kiro | no built-in image generation | SVG, CSS and icons are written as code by the frontend builder |
+
+- Providers are tried in your order. A run counts only if it leaves a real PNG, JPEG, WebP or
+  GIF behind (the file's bytes are checked, so an SVG or a text file renamed `.png` is rejected).
+- The file gets the extension of its real format, and the result says so (`renamed`).
+- When nothing can produce the image, the command says so and the conductor continues with a
+  placeholder. Nothing is asked.
+- Each image is a provider run and counts against that provider's usage.
+
 ## Usage limits
 
 `limit_fallback` is set in setup. **Off:** nothing is measured or consulted. **On:** each
@@ -171,7 +192,7 @@ host with `/agentack resume`; progress is in `docs/features/<slug>/status.md`.
 | Codex | `~/.codex/skills/agentack` | `/agentack` | CLI runs |
 | Antigravity (app, IDE, CLI) | `~/.gemini/config/skills/agentack` | `/agentack` | CLI runs; Gemini workers need the `agy` CLI |
 
-The conductor should be on its host's S3 model or above: Opus, GPT-6.1 Sol, Gemini 4 Argon
+The conductor should be on its host's S3 model or above: Opus, GPT-6 Astra, Gemini 4 Argon
 (3.1 Pro is accepted).
 Antigravity loads skills by their description, so the description says the skill is for explicit
 `/agentack` calls only.

@@ -32,6 +32,15 @@ class Base(unittest.TestCase):
         self.git("config", "user.email", "t@example.com")
         self.git("config", "user.name", "T")
         (self.project / "a.txt").write_text("one\n")
+        # a small modular monolith: a Go API with two modules and a Next.js web app
+        for mod in ("billing", "catalog"):
+            d = self.project / "apps" / "api" / "internal" / "modules" / mod
+            d.mkdir(parents=True)
+            (d / "api.go").write_text("package api\n")
+        (self.project / "apps" / "api" / "go.mod").write_text("module example.com/api\n")
+        (self.project / "apps" / "web").mkdir(parents=True)
+        (self.project / "apps" / "web" / "package.json").write_text(json.dumps(
+            {"dependencies": {"next": "15", "react": "19"}, "scripts": {"test": "vitest", "lint": "next lint"}}))
         self.git("add", ".")
         self.git("commit", "-qm", "init")
         self.brief = self.project / ".brief.md"
@@ -108,15 +117,15 @@ class SetupTest(Base):
         self.assertTrue(d["single_provider"])
         self.assertEqual(d["notes"], [])
         self.assertEqual(self.primary(d, "decider"), "codex:gpt-6-astra@high")
-        self.assertEqual(self.primary(d, "reviewer"), "codex:gpt-6.1-sol@high")
-        self.assertEqual(self.primary(d, "be-go"), "codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.primary(d, "reviewer"), "codex:gpt-6-astra@medium")
+        self.assertEqual(self.primary(d, "backend"), "codex:gpt-6.1-sol@medium")
         self.assertEqual(self.primary(d, "scout"), "codex:gpt-6-luna@low")
         self.assertFalse(d["second_opinion"])
 
     def test_two_providers_reviewer_on_other_vendor(self):
         d = self.setup_providers("claude,codex")
-        self.assertEqual(self.primary(d, "fe-next"), "claude:sonnet")
-        self.assertEqual(self.primary(d, "reviewer"), "codex:gpt-6.1-sol@high")
+        self.assertEqual(self.primary(d, "frontend"), "claude:sonnet")
+        self.assertEqual(self.primary(d, "reviewer"), "codex:gpt-6-astra@medium")
         self.assertEqual(self.primary(d, "architect"), "claude:opus")
         self.assertTrue(d["second_opinion"])
 
@@ -155,8 +164,12 @@ class SetupTest(Base):
         ok = lambda h, m: self.run_cli("check-conductor", "--host", h, "--model", m)[1]["ok"]  # noqa: E731
         self.assertTrue(ok("claude", "claude-opus-5-5"))
         self.assertFalse(ok("claude", "claude-sonnet-5-5"))
-        self.assertTrue(ok("codex", "gpt-6.1-sol"))
+        self.assertTrue(ok("codex", "gpt-6-astra"))
+        self.assertFalse(ok("codex", "gpt-6.1-sol"), "Sol is the build model where the account has Astra")
         self.assertFalse(ok("codex", "gpt-6-luna"))
+        self.run_cli("verify", env={"FAKE_CODEX_NO_MODELS": "gpt-6-astra"})
+        self.assertTrue(ok("codex", "gpt-6.1-sol"), "without Astra, Sol is this account's plan-and-review model")
+        self.setup_providers("claude,codex", "--reset")
         self.setup_providers("agy")
         self.assertTrue(ok("agy", "Gemini 4 Argon"))
         self.assertTrue(ok("agy", "Gemini 3.1 Pro"))
@@ -182,7 +195,7 @@ class GuidanceTest(Base):
     def test_detect_describes_the_machine(self):
         code, d = self.run_cli("detect")
         env = d["environment"]
-        self.assertEqual((env["git_repo"], env["project_guide"]), (True, None))
+        self.assertEqual((env["git_repo"], env["project_guide"], env["project_initialised"]), (True, None, False))
         kiro = next(p for p in d["providers"] if p["name"] == "kiro")
         self.assertEqual(kiro["sign_in"], "kiro-cli login")
 
@@ -213,15 +226,17 @@ class GuidanceTest(Base):
         self.assertEqual((s["decides"], s["second_opinion"]), ("claude:fable", None))
         self.assertEqual((s["limit_fallback"], s["usage_measured_for"]), ("on, switch at 85%", ["codex"]))
 
-    def test_missing_project_guide_and_single_provider_are_pointed_out(self):
+    def test_uninitialised_project_and_single_provider_are_pointed_out(self):
         self.setup_providers("claude")
         code, d = self.run_cli("verify")
         texts = [s["text"] for s in d["next_steps"]]
-        self.assertTrue(any("no CLAUDE.md / AGENTS.md" in t for t in texts))
+        self.assertTrue(any("not been scanned yet" in t for t in texts))
         self.assertTrue(any("one provider in use" in t for t in texts))
-        (self.project / "AGENTS.md").write_text("# guide\n")
+        self.assertFalse(any(s["level"] == "action" for s in d["next_steps"]), "nothing to fix, nothing to ask")
+        self.run_cli("init")
         code, d = self.run_cli("roster")
-        self.assertFalse(any(s["level"] == "action" for s in d["next_steps"]))
+        self.assertFalse(any("not been scanned" in s["text"] for s in d["next_steps"]))
+        self.assertEqual(d["builders"], {"backend": ["be-go"], "frontend": ["fe-next"]})
 
     def test_fallback_measurement_gaps_are_explained(self):
         self.setup_providers("claude,cursor", "--fallback", "on")
@@ -260,9 +275,12 @@ class DispatchTest(Base):
 
     def test_native_subagent_on_claude_host(self):
         self.setup_providers("claude,codex")
-        code, d = self.run_cli("dispatch", "--role", "be-node", "--brief", self.brief, "--host", "claude")
-        self.assertEqual((d["via"], d["model"]), ("native", "sonnet"))
-        self.assertTrue(d["role_file"].endswith("roles/be-node.md"))
+        code, d = self.run_cli("dispatch", "--role", "backend", "--brief", self.brief, "--host", "claude")
+        self.assertEqual((d["via"], d["model"], d["label"], d["unit"]), ("native", "sonnet", "be-go", "api"))
+        prompt = Path(d["prompt_file"]).read_text()
+        self.assertIn("# backend · S2", prompt)
+        self.assertIn("## go conventions", prompt)
+        self.assertIn("Do the thing.", prompt)
         code, d = self.run_cli("dispatch", "--role", "reviewer", "--brief", self.brief, "--host", "claude")
         self.assertEqual((d["via"], d["provider"]), ("cli", "codex"))
 
@@ -316,8 +334,8 @@ class MissingModelTest(Base):
     def test_listing_without_the_model_uses_other_providers(self):
         code, d = self.run_cli("setup", "--providers", "claude,codex,agy", env=self.NO_ARGON)
         self.assertEqual(self.chain(d, "decider"), ["claude:fable", "codex:gpt-6-astra@high"])
-        self.assertEqual(self.chain(d, "architect"), ["claude:opus", "codex:gpt-6.1-sol@high"])
-        self.assertEqual(self.chain(d, "be-go")[-1], "agy:gemini-3.8-flash-high", "build falls to Flash, last")
+        self.assertEqual(self.chain(d, "architect"), ["claude:opus", "codex:gpt-6-astra@medium"])
+        self.assertEqual(self.chain(d, "backend")[-1], "agy:gemini-3.8-flash-high", "build falls to Flash, last")
         self.assertTrue(any("gemini-4-argon (S4) is not available" in n for n in d["notes"]))
 
     def test_verify_heals_a_roster_saved_with_a_model_the_listing_lacks(self):
@@ -352,7 +370,7 @@ class MissingModelTest(Base):
         self.assertEqual(self.chain(d, "reviewer"), ["claude:opus"], "the failing provider is set aside")
         self.assertTrue(any("codex is set aside" in n for n in d["notes"]))
         code, d = self.run_cli("verify")
-        self.assertEqual(self.chain(d, "reviewer")[0], "codex:gpt-6.1-sol@high", "and comes back when it works")
+        self.assertEqual(self.chain(d, "reviewer")[0], "codex:gpt-6-astra@medium", "and comes back when it works")
 
     def test_refused_at_run_time_moves_on_without_fallback_setting(self):
         self.setup_providers("claude,codex", "--fallback", "off")
@@ -368,11 +386,13 @@ class MissingModelTest(Base):
     def test_codex_model_refused_for_chatgpt_accounts(self):
         self.setup_providers("codex,claude")
         code, d = self.run_cli("verify", env={"FAKE_CODEX_NO_MODELS": "gpt-6-astra"})
-        self.assertEqual(d["removed"], ["codex:gpt-6-astra (S4)"])
+        self.assertEqual(d["removed"], ["codex:gpt-6-astra (S4)", "codex:gpt-6-astra (S3)"])
+        self.assertEqual(self.chain(d, "architect")[0], "codex:gpt-6.1-sol@high", "Sol stands in at S3, at full effort")
+        self.assertEqual(next(r for r in d["roster"] if r["role"] == "architect")["style"], "explicit")
         refused = next(c for c in d["checked"] if c["model"] == "gpt-6-astra")
         self.assertIn("not supported when using Codex with a ChatGPT account", refused["error"])
         self.assertEqual(self.chain(d, "decider"), ["claude:fable"])
-        self.assertEqual(self.chain(d, "be-go")[0], "codex:gpt-6.1-sol@medium", "the rest of Codex stays")
+        self.assertEqual(self.chain(d, "backend")[0], "codex:gpt-6.1-sol@medium", "the rest of Codex stays")
         self.assertTrue(d["verified"])
 
     def test_codex_listing_drops_models_before_any_ping(self):
@@ -388,7 +408,7 @@ class MissingModelTest(Base):
         row = self.go("be-go", env={"FAKE_CODEX": "error_noise"})
         self.assertEqual((row["status"], row["provider"]), ("error", "codex"))
         code, d = self.run_cli("roster")
-        self.assertEqual(self.chain(d, "be-go")[0], "codex:gpt-6.1-sol@medium")
+        self.assertEqual(self.chain(d, "backend")[0], "codex:gpt-6.1-sol@medium")
 
     def test_available_model_is_never_downgraded(self):
         self.setup_providers("claude")
@@ -407,7 +427,7 @@ class StrengthsTest(Base):
         d = self.setup_providers("agy,claude,codex")            # the user even put Gemini first
         self.assertEqual(self.chain(d, "architect")[0], "agy:gemini-4-argon-high")
         self.assertEqual(self.chain(d, "decider")[0], "agy:gemini-4-argon-high")
-        for role in ("be-go", "fe-next", "qa", "scout"):
+        for role in ("backend", "frontend", "qa", "scout"):
             chain = self.chain(d, role)
             self.assertTrue(chain[0].startswith("claude:"), role)
             self.assertTrue(chain[-1].startswith("agy:"), role + ": weak fit is the last resort")
@@ -415,7 +435,7 @@ class StrengthsTest(Base):
 
     def test_single_weak_provider_still_works_and_says_so(self):
         d = self.setup_providers("agy")
-        row = next(r for r in d["roster"] if r["role"] == "be-go")
+        row = next(r for r in d["roster"] if r["role"] == "backend")
         self.assertEqual((row["fit"], row["skill"]), (2, "backend"))
         self.assertIn("weak at this kind of work", row["note"])
         self.assertTrue(any("rated weak" in s["text"] for s in d["next_steps"]) if "next_steps" in d else True)
@@ -431,7 +451,7 @@ class StrengthsTest(Base):
     def test_user_can_rerate_a_provider(self):
         self.setup_providers("agy,claude")
         code, d = self.run_cli("setup", "--rate", "agy:backend=4")
-        self.assertTrue(self.chain(d, "be-go")[0].startswith("agy:"))
+        self.assertTrue(self.chain(d, "backend")[0].startswith("agy:"))
         code, e = self.run_cli("setup", "--rate", "agy:backend=9")
         self.assertEqual(code, 2)
 
@@ -452,25 +472,26 @@ class BriefStyleTest(Base):
 
     def test_styles_follow_the_model(self):
         d = self.setup_providers("claude")
-        self.assertEqual([self.style(d, r) for r in ("decider", "architect", "be-go", "scout")],
+        self.assertEqual([self.style(d, r) for r in ("decider", "architect", "backend", "scout")],
                          ["peer", "goal", "structured", "rules"])
         d = self.setup_providers("codex")
-        self.assertEqual([self.style(d, r) for r in ("decider", "reviewer", "be-go", "scout")],
-                         ["peer", "explicit", "explicit", "rules"])
+        self.assertEqual([self.style(d, r) for r in ("decider", "reviewer", "backend", "scout")],
+                         ["peer", "goal", "explicit", "rules"])
         d = self.setup_providers("kiro")
-        self.assertEqual(self.style(d, "be-go"), "explicit", "an Auto router is briefed with nothing implicit")
+        self.assertEqual(self.style(d, "backend"), "explicit", "an Auto router is briefed with nothing implicit")
 
     def test_style_can_be_overridden_per_tier(self):
         self.setup_providers("codex")
         code, d = self.run_cli("setup", "--style", "codex:S2=structured")
-        self.assertEqual(self.style(d, "be-go"), "structured")
+        self.assertEqual(self.style(d, "backend"), "structured")
         code, e = self.run_cli("setup", "--style", "codex:S9=goal")
         self.assertEqual(code, 2)
 
     def test_new_brief_uses_the_template_for_that_model(self):
         self.setup_providers("claude,codex")
         for role, style, marker in (("be-go", "structured", "## Steps"), ("architect", "goal", "## Done looks like"),
-                                    ("reviewer", "explicit", "## Steps (do them in order"),
+                                    ("reviewer", "goal", "## Done looks like"),
+                                    ("fe-next", "structured", "## Steps"),
                                     ("scout", "rules", "## Examples"), ("decider", "peer", "## Evidence")):
             code, b = self.run_cli("new-brief", role)
             self.assertEqual(b["style"], style, role)
@@ -485,6 +506,7 @@ class BriefStyleTest(Base):
 
     def test_worker_is_told_how_to_work_and_expands_a_looser_brief_after_a_switch(self):
         self.setup_providers("claude,codex", "--fallback", "on")
+        self.run_cli("verify", env={"FAKE_CODEX_NO_MODELS": "gpt-6-astra"})   # an account where Sol is S3
         code, b = self.run_cli("new-brief", "architect")                 # written for Opus: goal style
         Path(b["path"]).write_text(Path(b["path"]).read_text() + "\nDesign the invoice list.\n")
         code, d = self.run_cli("dispatch", "--role", "architect", "--brief", b["path"], "--host", "codex",
@@ -629,3 +651,229 @@ class WorktreeTest(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _tree(root: Path, files: dict) -> None:
+    for rel, text in files.items():
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text if isinstance(text, str) else json.dumps(text))
+
+
+SAMPLES = {
+    "microservices": {
+        "services/orders/pom.xml": "<project><artifactId>spring-boot-starter-web</artifactId></project>",
+        "services/orders/src/main/java/App.java": "",
+        "services/users/Users.Api.csproj": '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>',
+        "services/users.tests/Users.Tests.csproj": '<Project Sdk="Microsoft.NET.Sdk"><X Include="xunit"/></Project>',
+        "services/gateway/go.mod": "module gateway\n",
+        "web/package.json": {"dependencies": {"@angular/core": "19"}, "scripts": {"test": "ng test"}},
+        "proto/orders/v1/orders.proto": 'syntax = "proto3";\n',
+        "buf.yaml": "version: v2\n",
+        "docker-compose.yml": "services:\n  orders:\n    build: ./services/orders\n  users:\n    build: ./services/users\n",
+    },
+    "fullstack-app": {
+        "package.json": {"dependencies": {"next": "15", "@prisma/client": "6", "@trpc/server": "11"},
+                         "scripts": {"test": "vitest"}},
+        "tsconfig.json": "{}", "prisma/migrations/.keep": "",
+    },
+    "monolith": {
+        "backend/pyproject.toml": '[project]\ndependencies = ["django>=5", "djangorestframework", "pytest"]\n',
+        "frontend/package.json": {"dependencies": {"react": "19", "vite": "6"}, "scripts": {"test": "vitest"}},
+    },
+    "frontend-only": {"package.json": {"dependencies": {"vue": "3"}, "scripts": {"test": "vitest"}}},
+}
+
+
+class ProjectTest(Base):
+    """init reads any stack and architecture; builders take the project's shape. Nobody is asked."""
+
+    def sample(self, kind):
+        for p in list(self.project.iterdir()):
+            if p.name != ".git":
+                shutil.rmtree(p) if p.is_dir() else p.unlink()
+        _tree(self.project, SAMPLES[kind])
+        self.brief.write_text("Do the thing.\n")
+
+    def test_the_default_project_is_a_modular_monolith(self):
+        code, d = self.run_cli("init")
+        self.assertEqual(code, 0, d)
+        self.assertEqual(d["profile"]["architecture"]["kind"], "modular-monolith")
+        self.assertEqual(d["builders"], ["be-go", "fe-next"])
+        api = next(u for u in d["profile"]["units"] if u["name"] == "api")
+        self.assertEqual(api["modules"], ["internal/modules/", "billing", "catalog"])
+        self.assertEqual(api["commands"]["test"], "go test ./...")
+        self.assertTrue(json.loads((self.project / ".agentack.json").read_text())["project"])
+        code, again = self.run_cli("init")
+        self.assertTrue(again["unchanged"], "a second scan of the same tree writes nothing")
+
+    def test_each_architecture_is_recognised(self):
+        want = {"microservices": ["fe-angular", "be-go", "be-java", "be-csharp"],
+                "fullstack-app": ["fs-next"], "monolith": ["be-python", "fe-react"], "frontend-only": ["fe-vue"]}
+        for kind, builders in want.items():
+            self.sample(kind)
+            code, d = self.run_cli("init", "--dry-run")
+            self.assertEqual(d["profile"]["architecture"]["kind"], kind, d["summary"])
+            self.assertEqual(d["builders"], builders, kind)
+        self.sample("microservices")
+        code, d = self.run_cli("init", "--dry-run")
+        c = d["profile"]["contracts"]
+        self.assertEqual((c["kinds"], c["check"]), (["protobuf"], "buf lint && buf breaking --against '.git#branch=main'"))
+        self.sample("fullstack-app")
+        code, d = self.run_cli("init", "--dry-run")
+        self.assertEqual(d["profile"]["contracts"]["kinds"], ["typed"])
+        self.assertEqual(d["profile"]["data"]["migrations"], ["prisma/migrations/"])
+
+    def test_builders_follow_the_project(self):
+        self.setup_providers("claude,codex")
+        self.sample("microservices")
+        self.run_cli("init")
+        code, d = self.run_cli("dispatch", "--role", "backend", "--brief", self.brief, "--host", "codex")
+        self.assertEqual(code, 2, "three backends: the conductor has to say which")
+        self.assertIn("several backend units", d["error"])
+        code, d = self.run_cli("dispatch", "--role", "be-java", "--brief", self.brief, "--host", "claude")
+        self.assertEqual((d["label"], d["unit"]), ("be-java", "orders"))
+        prompt = Path(d["prompt_file"]).read_text()
+        for part in ("## Architecture rules (microservices)", "## java conventions", "`mvn test`", "services/orders"):
+            self.assertIn(part, prompt)
+        self.assertNotIn("## go conventions", prompt, "only the unit's own stack is sent")
+        code, d = self.run_cli("dispatch", "--role", "backend", "--unit", "users", "--brief", self.brief,
+                               "--host", "claude")
+        self.assertEqual(d["label"], "be-csharp")
+        code, d = self.run_cli("dispatch", "--role", "fe-angular", "--brief", self.brief, "--host", "claude")
+        self.assertIn("## angular conventions", Path(d["prompt_file"]).read_text())
+        code, d = self.run_cli("dispatch", "--role", "reviewer", "--brief", self.brief, "--host", "claude",
+                               "--avoid", "codex")
+        self.assertEqual(d["via"], "native")
+        self.assertIn("## Review checks (microservices)", Path(d["prompt_file"]).read_text())
+
+    def test_a_full_stack_unit_gets_one_builder(self):
+        self.setup_providers("claude")
+        self.sample("fullstack-app")
+        self.run_cli("init")
+        for role in ("backend", "frontend", "fs-next"):
+            code, d = self.run_cli("dispatch", "--role", role, "--brief", self.brief, "--host", "claude")
+            self.assertEqual((code, d["label"]), (0, "fs-next"), role)
+        prompt = Path(d["prompt_file"]).read_text()
+        self.assertIn("## Architecture rules (fullstack-app)", prompt)
+        self.assertIn("## next conventions", prompt)
+
+    def test_corrections_survive_a_rescan_and_changes_are_noticed(self):
+        self.run_cli("init")
+        code, d = self.run_cli("init", "--set", "units.api.commands.test=make test-api",
+                               "--set", "architecture=monolith")
+        api = next(u for u in d["profile"]["units"] if u["name"] == "api")
+        self.assertEqual((api["commands"]["test"], d["profile"]["architecture"]["kind"]),
+                         ("make test-api", "monolith"))
+        code, d = self.run_cli("init")
+        self.assertEqual(d["profile"]["architecture"]["kind"], "monolith", "an override wins over the scan")
+        code, e = self.run_cli("init", "--set", "architecture=spaghetti")
+        self.assertEqual(code, 2)
+        _tree(self.project, {"apps/admin/package.json": {"dependencies": {"@angular/core": "19"}}})
+        code, p = self.run_cli("project")
+        self.assertEqual(p["stale"], ["new unit admin (fe-angular)"])
+
+    def test_dispatch_works_before_init(self):
+        self.setup_providers("codex")
+        row = self.go("be-go")
+        self.assertEqual((row["status"], row["label"], row["unit"]), ("done", "be-go", "api"))
+        code, d = self.run_cli("project")
+        self.assertEqual(code, 4, "nothing was written: init is still the conductor's step")
+
+
+class DesignTest(Base):
+    """The designer goes to the best visual provider; images come from providers that can make them."""
+
+    def test_designer_runs_on_the_best_visual_provider(self):
+        d = self.setup_providers("claude,codex,agy")
+        row = next(r for r in d["roster"] if r["role"] == "designer")
+        self.assertEqual((row["tier"], row["skill"], row["fit"]), ("S3", "visual", 5))
+        self.assertTrue(row["primary"].startswith("agy:gemini-4-argon"))
+        self.assertEqual(d["summary"]["designs"], row["primary"])
+        d = self.setup_providers("claude", "--reset")
+        self.assertEqual(self.primary(d, "designer"), "claude:opus")
+
+    def test_designer_gets_the_frontend_unit_and_never_the_builder_rules(self):
+        self.setup_providers("claude")
+        code, d = self.run_cli("dispatch", "--role", "designer", "--brief", self.brief, "--host", "claude")
+        self.assertEqual((d["mode"], d["unit"]), ("write", "web"))
+        prompt = Path(d["prompt_file"]).read_text()
+        self.assertIn("# designer · S3", prompt)
+        self.assertIn("apps/web", prompt)
+        self.assertIn("no provider here generates raster images", prompt)
+        self.assertNotIn("## Architecture rules", prompt)
+
+    def test_image_is_generated_by_a_provider_that_can(self):
+        self.setup_providers("claude,codex,agy")
+        out = self.project / "public" / "hero.png"
+        code, d = self.run_cli("image", "--prompt", "a paper plane", "--out", out, "--aspect", "16:9")
+        self.assertEqual((code, d["provider"], d["format"]), (0, "codex", "png"), d)
+        self.assertTrue(out.read_bytes().startswith(b"\x89PNG"))
+        self.assertIn("image_generation", next(c for c in self.fake_log() if c["cli"] == "codex")["argv"])
+        code, d = self.run_cli("roster")
+        self.assertEqual(d["summary"]["images"], "codex")
+
+    def test_fake_images_are_rejected_and_the_next_provider_takes_over(self):
+        self.setup_providers("codex,agy")
+        out = self.project / "a.png"
+        code, d = self.run_cli("image", "--prompt", "x", "--out", out, env={"FAKE_CODEX_IMAGE": "svg"})
+        self.assertEqual((code, d["provider"]), (0, "agy"))
+        self.assertEqual(d["attempts"][0], {"provider": "codex", "model": "gpt-6.1-sol",
+                                            "outcome": "no image file produced"})
+        code, d = self.run_cli("image", "--prompt", "x", "--out", out,
+                               env={"FAKE_CODEX_IMAGE": "none", "FAKE_AGY_IMAGE": "jpg"})
+        self.assertTrue((d["renamed"], d["path"].endswith("a.jpg")) == (True, True), d)
+
+    def test_no_image_provider_is_reported_not_asked(self):
+        self.setup_providers("claude")
+        code, d = self.run_cli("image", "--prompt", "x", "--out", self.project / "a.png")
+        self.assertEqual(code, 3)
+        self.assertIn("placeholder", d["next"])
+        self.setup_providers("codex", "--reset")
+        code, d = self.run_cli("image", "--prompt", "x", "--out", self.project / "a.png",
+                               env={"FAKE_CODEX_IMAGE": "none"})
+        self.assertEqual(code, 3)
+        self.assertIn("no image file produced", d["error"])
+
+
+class SharedFolderTest(Base):
+    """A backend and a frontend that live in the same folder are two units, not one."""
+
+    def test_go_and_angular_in_the_root(self):
+        for p in list(self.project.iterdir()):
+            if p.name != ".git":
+                shutil.rmtree(p) if p.is_dir() else p.unlink()
+        _tree(self.project, {"go.mod": "module ubys\n", "main.go": "package main\n",
+                             "package.json": {"dependencies": {"@angular/core": "19"}, "scripts": {"test": "ng test"}},
+                             "src/app/app.component.ts": ""})
+        self.brief.write_text("Do the thing.\n")
+        code, d = self.run_cli("init")
+        self.assertEqual(sorted(d["builders"]), ["be-go", "fe-angular"])
+        self.assertEqual({u["name"]: u["path"] for u in d["profile"]["units"]}, {"proj-angular": ".", "proj-go": "."})
+        self.setup_providers("claude")
+        code, d = self.run_cli("dispatch", "--role", "backend", "--brief", self.brief, "--host", "claude")
+        self.assertEqual((d["label"], d["unit"]), ("be-go", "proj-go"))
+        self.assertIn("go test ./...", Path(d["prompt_file"]).read_text())
+
+    def test_source_without_a_manifest_is_pointed_out(self):
+        _tree(self.project, {"legacy/src/%d.php" % i: "<?php" for i in range(9)})
+        code, d = self.run_cli("init", "--dry-run")
+        self.assertEqual(d["profile"]["unclaimed"], [{"language": "php", "files": 9, "mostly_in": "legacy/"}])
+        self.assertTrue(any("9 php files" in a and "units.<name>.path" in a for a in d["attention"]))
+        code, d = self.run_cli("init", "--set", "units.legacy.path=legacy", "--set", "units.legacy.layer=backend",
+                               "--set", "units.legacy.stack=php")
+        self.assertIn("be-php", d["builders"])
+
+
+class BackendArchitectTest(Base):
+    def test_it_plans_on_s3_and_gets_the_backend_unit_with_its_boundaries(self):
+        d = self.setup_providers("claude,codex")
+        row = next(r for r in d["roster"] if r["role"] == "backend-architect")
+        self.assertEqual((row["tier"], row["skill"], row["primary"]), ("S3", "plan", "claude:opus"))
+        code, d = self.run_cli("dispatch", "--role", "backend-architect", "--brief", self.brief, "--host", "claude")
+        self.assertEqual((d["mode"], d["unit"], d["label"]), ("write", "api", "backend-architect"))
+        prompt = Path(d["prompt_file"]).read_text()
+        for part in ("# backend-architect · S3", "apps/api", "## Boundaries (modular-monolith)",
+                     "## Rules for builders (modular-monolith)"):
+            self.assertIn(part, prompt)
+        self.assertNotIn("## go conventions", prompt, "it designs; language idioms are the builder's")

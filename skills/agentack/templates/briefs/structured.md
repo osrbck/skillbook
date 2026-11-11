@@ -9,7 +9,7 @@
 ## Files
 - Change: `<path>`, `<path>`
 - Read for reference: `<path>`
-- Off limits: other modules, `contracts/` (if it needs to change, STOP and report), generated code
+- Off limits: other modules or services, contract files (if one needs to change, STOP and report), generated code
 
 ## Steps
 1. <step>
@@ -17,7 +17,7 @@
 3. Write or update the unit tests for the new behavior
 
 ## Contract
-- `contracts/<module>/openapi.yaml` → operationId: `<...>` · generated types: `<path>`
+- `<contract file>` → operation: `<...>` · generated types: `<path>`
 
 ## Acceptance criteria
 - [ ] <behavior 1>

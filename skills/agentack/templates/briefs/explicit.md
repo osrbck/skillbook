@@ -9,7 +9,7 @@
 - Working directory: `<path>` · Branch state: do not commit, stash or reset
 - Files you will change: `<path>`, `<path>` (no others)
 - Files to read first, in this order: `<path>` (what to look for: <...>), `<path>` (<...>)
-- Contract: `contracts/<module>/openapi.yaml`, operationId `<...>` · generated types at `<path>`
+- Contract: `<contract file>`, operation `<...>` · generated types at `<path>`
 
 ## Steps (do them in order; each has a visible result)
 1. <action> in `<file>`: <exactly what to add or change>. Result: <what exists afterwards>
@@ -20,7 +20,7 @@
 
 ## Rules
 - If a step cannot be done as written, stop at that step and report why. Do not improvise around it.
-- Do not touch: other modules, `contracts/`, generated code, files not listed above.
+- Do not touch: other modules or services, contract files, generated code, files not listed above.
 - Conventions to follow: <naming, error handling, the existing file to imitate: `<path>`>
 
 ## Done when

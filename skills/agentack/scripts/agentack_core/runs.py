@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from . import config, limits, roster
+from . import project as projectmod
 from .providers import LIMIT_RX, PROVIDERS, STYLE_GUIDE, STYLES, model_refusal
 
 TERMINAL = {"done", "error", "limit", "timeout", "no_model"}
@@ -65,35 +66,132 @@ def find_run(project: Path, run_id: str) -> Path:
 
 # -- dispatch ------------------------------------------------------------------------------
 
+class Unclear(ValueError):
+    """The project does not say which unit a run is for; the message lists the choices."""
+
+
+def project_context(role: str, prof: dict, unit: Optional[dict]) -> str:
+    """The slice of the project profile this role needs, and nothing more."""
+    arch = prof["architecture"]["kind"]
+    ref = SKILL_DIR / "references" / "architecture" / (arch + ".md")
+    c = prof.get("contracts") or {}
+    contracts = ("- Contracts: %s in %s%s. Generated code is never edited by hand." % (
+        ", ".join(c["kinds"]), c.get("root") or ", ".join(c.get("roots") or []) or "the code (tRPC / ts-rest types)",
+        " · check: `%s`" % c["check"] if c.get("check") else "")) if c.get("kinds") else \
+        "- Contracts: none as files; the types and signatures shared between units are the contract."
+    out = ["## Project"]
+    if role in roster.BUILDERS and unit:
+        out += ["- Architecture: %s" % arch, projectmod.describe_unit(unit), contracts]
+        if role == "backend" and (prof.get("data") or {}).get("migrations"):
+            out.append("- Migrations: " + ", ".join(prof["data"]["migrations"]))
+        rules = projectmod.section(ref, "Rules for builders")
+        if rules:
+            out += ["", "## Architecture rules (%s)" % arch, rules]
+        stacks = SKILL_DIR / "references" / "stacks.md"
+        for key in (unit.get("framework"), unit.get("stack"), unit.get("language")):
+            conv = projectmod.section(stacks, key) if key else ""
+            if conv:
+                out += ["", "## %s conventions" % key, conv]
+                break
+        out += ["", "The project's own code wins over every rule above: before you write, read one or two "
+                    "neighbouring files and follow their patterns."]
+    elif role in ("reviewer", "architect", "qa"):
+        out.append(projectmod.describe(prof))
+        if unit:
+            out.append("- Focus on unit `%s` (%s)" % (unit["name"], unit["path"]))
+        head = {"reviewer": "Review checks", "architect": "Planning", "qa": "Testing"}[role]
+        text = projectmod.section(ref, head)
+        if text:
+            out += ["", "## %s (%s)" % (head, arch), text]
+        if role == "architect":
+            out.append("\nFull architecture notes: `%s` · contract rules: `%s`"
+                       % (ref, SKILL_DIR / "references" / "contracts.md"))
+    elif role == "backend-architect":
+        out.append(projectmod.describe(prof, short=True))
+        if unit:
+            out += [projectmod.describe_unit(unit), contracts]
+        if (prof.get("data") or {}).get("migrations"):
+            out.append("- Migrations: " + ", ".join(prof["data"]["migrations"]))
+        if prof.get("boundaries"):
+            out.append("- Boundary checks: " + ", ".join(prof["boundaries"]))
+        for head in ("Boundaries", "Rules for builders"):
+            text = projectmod.section(ref, head)
+            if text:
+                out += ["", "## %s (%s)" % (head, arch), text]
+    elif role == "designer":
+        out.append(projectmod.describe(prof, short=True))
+        if unit:
+            out += [projectmod.describe_unit(unit),
+                    "- Design for this unit's framework and the components it already has."]
+        out.append("- Images: %s" % ("the conductor can generate raster images from the prompts in your "
+                                     "asset list" if image_providers_cfg(prof.get("_cfg")) else
+                                     "no provider here generates raster images; plan for SVG, CSS, icons "
+                                     "from the project's icon set, or placeholders the user replaces"))
+    elif role == "contract-guard":
+        out += [contracts, "- Tools found in the repository: %s" % (", ".join(c.get("tools") or []) or "none"),
+                "- Default tools per contract kind: `%s`" % (SKILL_DIR / "references" / "contracts.md")]
+    else:                                                       # scout, decider: the map, not the rules
+        out.append(projectmod.describe(prof, short=role == "scout"))
+    return "\n".join(out)
+
+
 def dispatch(project: Path, role: str, brief: Path, cwd: Path, mode: Optional[str], avoid: List[str],
-             host: Optional[str], timeout: Optional[int], cfg: dict, skill: Optional[str] = None) -> dict:
-    if not role_file(role).is_file():
+             host: Optional[str], timeout: Optional[int], cfg: dict, skill: Optional[str] = None,
+             unit: Optional[str] = None) -> dict:
+    role, stack = roster.canonical(role)
+    if role not in roster.ROLE_TIER or not role_file(role).is_file():
         raise roster.NoModel("unknown role: %s" % role)
+    prof, saved = projectmod.load(project, cfg)
+    target = None
+    try:
+        if role in roster.BUILDERS:
+            target = projectmod.pick_unit(prof, role, unit, stack)
+        elif unit:
+            target = projectmod.pick_unit(prof, "", unit)
+        elif role in ("designer", "backend-architect"):
+            try:
+                target = projectmod.pick_unit(prof, "frontend" if role == "designer" else "backend")
+            except ValueError:
+                target = None                                   # several frontends: the brief names it
+    except ValueError as e:
+        raise Unclear(str(e))
+    prof = dict(prof, _cfg=cfg)
+    label = projectmod.label(role, target)
     limits.refresh(cfg)
     choice = roster.pick(role, cfg, avoid=avoid, skill=skill)
     mode = mode or roster.default_mode(role)
+    context = project_context(role, prof, target)
+    extra = {"label": label, "unit": target["name"] if target else None}
+    if not saved:
+        extra["project_note"] = "project not initialised; used a fresh scan (run `init` to save it)"
 
     if host == "claude" and choice["provider"] == "claude" and cfg.get("native_subagents", True):
         # The host can run this itself as a subagent: cheaper to start and visible to the user.
-        log(project, event="dispatch", via="native", role=role,
+        log(project, event="dispatch", via="native", role=role, label=label,
             skipped=[x.get("provider") for x in choice["skipped"]], **_brief_choice(choice))
+        pdir = work_dir(project) / "prompts"
+        pdir.mkdir(exist_ok=True)
+        pfile = pdir / ("%s-%s.md" % (datetime.now().strftime("%m%d-%H%M%S"), label))
+        pfile.write_text(_prompt({"role": role, "label": label, "mode": mode, "cwd": str(cwd),
+                                  "brief": str(brief), "context": context}, choice), encoding="utf-8")
         return {"via": "native", "role": role, "mode": mode, "model": choice["model"],
-                "style": choice.get("style"), "how_to_work": STYLE_GUIDE[choice["style"]]["work"],
-                "role_file": str(role_file(role)), "brief": str(brief), "cwd": str(cwd),
+                "style": choice.get("style"), "prompt_file": str(pfile), "cwd": str(cwd),
                 "tier": choice["tier"], "switched": choice["switched"], "skipped": choice["skipped"],
-                "independent": choice["independent"], "independence_note": choice.get("independence_note")}
+                "independent": choice["independent"], "independence_note": choice.get("independence_note"),
+                **extra}
 
-    run_id = "%s-%s-%s" % (datetime.now().strftime("%m%d-%H%M%S"), role, uuid.uuid4().hex[:4])
+    run_id = "%s-%s-%s" % (datetime.now().strftime("%m%d-%H%M%S"), label, uuid.uuid4().hex[:4])
     run_dir = work_dir(project) / "runs" / run_id
     run_dir.mkdir(parents=True)
     tier_timeout = timeout or cfg["timeouts"].get(roster.ROLE_TIER[role], 30)
-    _save(run_dir, {"id": run_id, "role": role, "mode": mode, "cwd": str(cwd), "brief": str(brief),
+    _save(run_dir, {"id": run_id, "role": role, "label": label, "unit": extra["unit"], "mode": mode,
+                    "cwd": str(cwd), "brief": str(brief), "context": context,
                     "avoid": avoid, "skill": skill, "project": str(project), "timeout_minutes": tier_timeout,
                     "status": "queued", "created": _now(), "attempts": []})
     with open(run_dir / "runner.log", "w") as out:
         subprocess.Popen([sys.executable, str(SCRIPT), "_exec", str(run_dir)], stdin=subprocess.DEVNULL,
                          stdout=out, stderr=out, start_new_session=True, cwd=str(project))
-    return {"via": "cli", "run_id": run_id, "role": role, "mode": mode, "provider": choice["provider"],
+    return {"via": "cli", "run_id": run_id, "role": role, **extra, "mode": mode, "provider": choice["provider"],
             "style": choice.get("style"),
             "model": choice["model"], "effort": choice.get("effort"), "tier": choice["tier"],
             "switched": choice["switched"], "skipped": choice["skipped"],
@@ -124,7 +222,8 @@ def _needs_more_detail(written_for: Optional[str], actual: Optional[str]) -> boo
 def _prompt(meta: dict, choice: dict) -> str:
     role_text = role_file(meta["role"]).read_text(encoding="utf-8")
     brief = Path(meta["brief"]).read_text(encoding="utf-8")
-    rules = ["- Role: %s · Tier: %s · Working directory: %s" % (meta["role"], choice["tier"], meta["cwd"])]
+    rules = ["- Role: %s · Tier: %s · Working directory: %s" % (meta.get("label") or meta["role"], choice["tier"],
+                                                                 meta["cwd"])]
     if meta["mode"] == "read":
         rules.append("- READ-ONLY run: do not create, modify or delete any file. Commands that only "
                      "read or verify (git diff, tests, linters) are fine.")
@@ -140,7 +239,10 @@ def _prompt(meta: dict, choice: dict) -> str:
                          "your answer, then carry them out in order.")
     rules.append("- Your final message is the only thing the conductor reads. Follow your role's "
                  "return format, keep it under 400 words, no file dumps.")
-    parts = [role_text.strip(), "---", "## Run context", "\n".join(rules)]
+    parts = [role_text.strip(), "---"]
+    if meta.get("context"):
+        parts.append(meta["context"])
+    parts += ["## Run context", "\n".join(rules)]
     failed = [a for a in meta.get("attempts", []) if a.get("outcome") != "done"]
     if failed:
         parts += ["## Previous attempt",
@@ -197,7 +299,8 @@ def execute(run_dir: Path) -> None:
     def finish(status: str, **extra):
         meta.update(status=status, finished=_now(), minutes=round((time.time() - started) / 60, 1), **extra)
         _save(run_dir, meta)
-        log(project, event="finish", via="cli", run=meta["id"], role=meta["role"], status=status,
+        log(project, event="finish", via="cli", run=meta["id"], role=meta["role"], label=meta.get("label"),
+            status=status,
             provider=meta.get("provider"), model=meta.get("model"), minutes=meta["minutes"],
             switched=bool(meta.get("switched")), independent=meta.get("independent"),
             skipped=[x.get("provider") for x in meta.get("skipped") or []],
@@ -275,10 +378,132 @@ def execute(run_dir: Path) -> None:
         return finish("done")
 
 
+# -- images --------------------------------------------------------------------------------
+
+IMAGE_MAGIC = ((b"\x89PNG\r\n\x1a\n", "png"), (b"\xff\xd8\xff", "jpg"), (b"GIF8", "gif"))
+IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif")
+
+
+def image_format(path: Path) -> Optional[str]:
+    """png / jpg / webp / gif when the file really is a raster image, else None."""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(16)
+    except OSError:
+        return None
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "webp"
+    return next((fmt for magic, fmt in IMAGE_MAGIC if head.startswith(magic)), None)
+
+
+def image_providers_cfg(cfg: Optional[dict]) -> List[str]:
+    """Selected, working providers whose CLI can generate raster images, in the user's order."""
+    if not cfg:
+        return []
+    provs = cfg.get("providers") or {}
+    allowed = cfg.get("allowed_providers")
+    return [p for p in cfg.get("order") or [] if p in PROVIDERS and PROVIDERS[p].image and p in provs
+            and not provs[p].get("disabled") and (not allowed or p in allowed)]
+
+
+def _new_images(dirs: List[Path], since: float, depth: int = 3) -> List[Path]:
+    found = []
+    for base in dirs:
+        if not base.is_dir():
+            continue
+        stack = [(base, 0)]
+        while stack:
+            d, lvl = stack.pop()
+            try:
+                entries = list(d.iterdir())
+            except OSError:
+                continue
+            for e in entries:
+                if e.is_dir() and lvl < depth:
+                    stack.append((e, lvl + 1))
+                elif e.suffix.lower() in IMAGE_EXT and e.is_file() and e.stat().st_mtime >= since - 1:
+                    found.append(e)
+    return sorted(found, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def image(project: Path, cfg: dict, description: str, out_path: Path, aspect: Optional[str],
+          timeout_s: int = 300) -> dict:
+    """Generate one raster image through a provider's own CLI and save it at out_path.
+
+    Experimental. Tries each image-capable provider in the user's order; a provider that returns
+    no real image file is skipped. Raises NoModel when none of them delivers."""
+    names = image_providers_cfg(cfg)
+    if not names:
+        raise roster.NoModel("no selected provider can generate images (Codex and Antigravity can)")
+    fb = cfg["limit_fallback"]
+    state = limits.load()
+    attempts = []
+    for name in names:
+        prov = PROVIDERS[name]
+        if fb["enabled"]:
+            ok, reason = limits.availability(name, cfg, state)
+            if not ok:
+                attempts.append({"provider": name, "outcome": reason})
+                continue
+        binary = prov.find(cfg)
+        tiers = (cfg["providers"].get(name) or {}).get("tiers") or {}
+        gone = limits.missing(state)
+        spec = next((tiers[t] for t in ("S2", "S1", "S3", "S4")
+                     if tiers.get(t) and tiers[t].get("model") and (name, tiers[t]["model"]) not in gone), None)
+        if not binary or not spec:
+            attempts.append({"provider": name, "outcome": "not installed" if not binary else "no model"})
+            continue
+        run_id = "%s-image-%s" % (datetime.now().strftime("%m%d-%H%M%S"), uuid.uuid4().hex[:4])
+        run_dir = work_dir(project) / "images" / run_id
+        run_dir.mkdir(parents=True)
+        target = run_dir / "image.png"
+        prompt = ("Generate exactly one raster image with your image generation tool.\n"
+                  "- Do not write code, and do not draw it as SVG, HTML or with a script.\n"
+                  "- Do not create, change or delete any other file.\n"
+                  "- Save it as: %s\n"
+                  "  If your tool saves it somewhere else, leave it there and give the full path in your answer.\n"
+                  "%s"
+                  "- Answer with the path of the image file and nothing else.\n\n"
+                  "Image description:\n%s\n" % (target, "- Aspect ratio: %s\n" % aspect if aspect else "",
+                                                 description.strip()))
+        started = time.time()
+        out_file = str(run_dir / "last-message.txt")
+        argv, stdin = prov.image_command(binary, spec, prompt, str(run_dir), out_file)
+        limits.count_call(name)
+        code, stdout, stderr, timed_out = _run_cli(argv, stdin, str(run_dir), timeout_s, run_dir, 1)
+        text, _ = prov.final(stdout, out_file)
+        evidence = "\n".join([stderr[-3000:], stdout[-3000:], text[:2000]])
+        if code != 0 and LIMIT_RX.search(evidence):
+            limits.mark_exhausted(name, LIMIT_RX.search(evidence).group(0), fb["cooldown_minutes"])
+            attempts.append({"provider": name, "outcome": "limit"})
+            continue
+        mentioned = [Path(m) for m in re.findall(r"(/[^\s`'\"<>]+\.(?:png|jpe?g|webp|gif))", text or "", re.I)]
+        cands = [target] + _new_images([run_dir], started, 2) + _new_images(prov.image_dirs(), started) + mentioned
+        hit = next((c for c in cands if c.is_file() and image_format(c)), None)
+        if not hit:
+            attempts.append({"provider": name, "model": spec["model"],
+                             "outcome": "timeout" if timed_out else "no image file produced"})
+            continue
+        fmt = image_format(hit)
+        dest = Path(out_path)
+        if dest.suffix.lower().lstrip(".").replace("jpeg", "jpg") != fmt:
+            dest = dest.with_suffix("." + fmt)                  # never save a JPEG under a .png name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(hit.read_bytes())
+        attempts.append({"provider": name, "model": spec["model"], "outcome": "done"})
+        log(project, event="image", provider=name, model=spec["model"], path=str(dest),
+            seconds=round(time.time() - started))
+        return {"ok": True, "path": str(dest), "format": fmt, "bytes": dest.stat().st_size,
+                "provider": name, "model": spec["model"], "seconds": round(time.time() - started),
+                "renamed": str(dest) != str(out_path), "attempts": attempts}
+    raise roster.NoModel("no image was produced: " + "; ".join(
+        "%s: %s" % (a["provider"], a["outcome"]) for a in attempts))
+
+
 # -- collection ----------------------------------------------------------------------------
 
 def _row(meta: dict) -> dict:
-    keys = ("id", "role", "mode", "status", "provider", "model", "tier", "minutes", "switched",
+    keys = ("id", "role", "label", "unit", "mode", "status", "provider", "model", "tier", "minutes", "switched",
             "substituted", "dropped", "weak_fit", "error", "violation")
     row = {k: meta[k] for k in keys if meta.get(k) not in (None, False)}
     if meta.get("independent") is False:
@@ -332,13 +557,13 @@ def report(project: Path) -> dict:
             if not (native or e.get("event") == "finish"):
                 continue
             if native or e.get("status") == "done":
-                key = "%s -> %s:%s" % (e.get("role"), e.get("provider"), e.get("model"))
+                key = "%s -> %s:%s" % (e.get("label") or e.get("role"), e.get("provider"), e.get("model"))
                 used[key] = used.get(key, 0) + 1
             else:
                 problems.append({k: e.get(k) for k in ("role", "status", "provider", "run")})
             minutes += e.get("minutes") or 0
             if e.get("switched") or e.get("failed"):
-                switches.append({"role": e.get("role"), "ran_on": "%s:%s" % (e.get("provider"), e.get("model")),
+                switches.append({"role": e.get("label") or e.get("role"), "ran_on": "%s:%s" % (e.get("provider"), e.get("model")),
                                  "instead_of": sorted(set((e.get("skipped") or []) +
                                                           [f.split(":")[0] for f in e.get("failed") or []])),
                                  "run": e.get("run")})
@@ -349,6 +574,8 @@ def report(project: Path) -> dict:
 
 def new_brief(project: Path, role: str, cfg: dict, style: Optional[str] = None) -> dict:
     """Create the next numbered brief from the template that suits the model this role runs on."""
+    name = role
+    role = roster.canonical(role)[0]
     model = None
     if style is None:
         try:
@@ -361,10 +588,10 @@ def new_brief(project: Path, role: str, cfg: dict, style: Optional[str] = None) 
     d = work_dir(project) / "briefs"
     d.mkdir(exist_ok=True)
     n = 1 + max([int(f.name[:2]) for f in d.glob("[0-9][0-9]-*.md")] or [0])
-    path = d / ("%02d-%s.md" % (n, role))
+    path = d / ("%02d-%s.md" % (n, name))
     template = SKILL_DIR / "templates" / "briefs" / (style + ".md")
     text = template.read_text(encoding="utf-8") if template.is_file() else "# Brief · <role>\n"
-    path.write_text(text.replace("<role>", role), encoding="utf-8")
+    path.write_text(text.replace("<role>", name), encoding="utf-8")
     guide = STYLE_GUIDE[style]
     return {"path": str(path), "role": role, "model": model, "style": style,
             "written_for": guide["for"], "put_in": guide["write"]}

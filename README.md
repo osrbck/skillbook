@@ -10,7 +10,7 @@ A collection of open-source skills for AI coding agents. Each skill is a folder 
 
 | Skill | What it does | Command |
 |---|---|---|
-| [**agentack**](skills/agentack/) | Conductor for contract-first full stack work: sizes each task and routes it to the smallest crew of specialist agents across Claude, Codex, Antigravity, Cursor and Kiro, with contract and review gates. | `/agentack` |
+| [**agentack**](skills/agentack/) | Conductor for full stack work in any language and architecture: reads the project once, sizes each task and routes it to the smallest crew of specialist agents across Claude, Codex, Antigravity, Cursor and Kiro, with contract and review gates. | `/agentack` |
 | [**worklog**](skills/worklog/) | Scans your local AI coding sessions for a time range and writes a report of the work done, grouped by project, with time estimates, commits and issue keys. | `/worklog` |
 
 Each skill's folder has its own README, changelog and contributing notes.

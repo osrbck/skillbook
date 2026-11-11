@@ -1,0 +1,53 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/validate.py
+      - name: installer smoke test
+        run: |
+          export HOME="$(mktemp -d)"
+          ./install.sh --everything --all
+          for s in skills/*/; do
+            s="$(basename "$s")"
+            for t in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/config/skills"; do
+              test -f "$t/$s/SKILL.md"
+              test ! -e "$t/$s/README.md"
+            done
+          done
+          ./install.sh --everything --uninstall
+
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.8", "3.12"]
+        exclude:
+          - os: macos-latest
+            python: "3.8"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: run every skill's tests
+        run: |
+          status=0
+          for d in tests/*/; do
+            echo "::group::$d"
+            python -m unittest discover -s "$d" -v || status=1
+            echo "::endgroup::"
+          done
+          exit $status

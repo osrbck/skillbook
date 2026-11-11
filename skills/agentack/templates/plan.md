@@ -5,21 +5,20 @@
 ## Goal
 <What changes for the user, 2–3 sentences>
 
-## Modules affected
-| Module | Change | Contract |
+## Units and modules affected
+| Unit / module | Change | Contract |
 |---|---|---|
 
 ## Contract changes
-- `contracts/<module>/openapi.yaml`: <add/change>
-- `contracts/<module>/events.asyncapi.yaml`: <...>
+- `<contract file>`: <add/change, additive or breaking>
 
 ## Tasks
 | # | Task | Role | Depends on | Paths |
 |---|---|---|---|---|
-| 1 | Contract draft | architect | — | contracts/<module> |
-| 2 | Contract gate | contract-guard | 1 | packages/api-client, gen/ |
-| 3 | ... | be-go | 2 | apps/api-go/internal/modules/<module> |
-| 4 | ... | fe-next | 2 | apps/web-next/... |
+| 1 | Contract draft | architect | — | <contract path> |
+| 2 | Contract gate | contract-guard | 1 | <generated paths> |
+| 3 | ... | be-<stack> | 2 | <backend unit>/<module> |
+| 4 | ... | fe-<stack> | 2 | <frontend unit>/<feature> |
 | 5 | Review | reviewer | 3,4 | — |
 
 ## Roles not needed

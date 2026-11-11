@@ -4,6 +4,63 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-11
+
+Agentack no longer assumes a stack or an architecture: it reads the project and the crew takes
+its shape. Scout, architect, contract-guard, qa, reviewer, decider, the two gates and independent
+review are unchanged.
+
+### Added
+- `init`: scans the repository once (units, languages, frameworks, layers, architecture,
+  contracts, migrations, boundary tools, commands) and saves the profile to `.agentack.json`;
+  `init --set` records corrections that survive later scans. The first task in a project runs
+  it by itself and reports before it starts; nobody is asked to describe the project
+- `project`: the saved profile, and what changed in the repository since the scan
+- Architecture notes per kind (`references/architecture/`): modular monolith, microservices,
+  full stack app, monolith, serverless, frontend only. Each role receives only its section
+  (rules for builders, planning, review checks, testing)
+- Stack conventions (`references/stacks.md`) for Go, Node/Nest, C#, Java, Kotlin, Python/Django/
+  FastAPI, Ruby, PHP, Elixir, Rust, Next.js, Nuxt, SvelteKit, Remix, Angular, React, Vue, Svelte,
+  React Native, Flutter, Blazor and Android; a builder gets only its unit's section
+- `dispatch --unit` for projects with several backends or frontends; builder names per project
+  (`be-java`, `fe-angular`, `fs-next` for both sides of a full stack unit)
+- Native Claude Code workers get one prompt file with the role, the project slice and the brief
+- `backend-architect` role (S3): for backend changes that must be designed before they are coded
+  (schema changes on live data, invariants under concurrency, writes across boundaries) it fixes
+  the data model, migration, transactions, idempotency, failure modes and must-have tests in
+  `backend.md`; the builder implements it, the reviewer and qa check against it
+- `designer` role (S3, placed on the provider rated best at visual work): for a new screen or a
+  visual redesign it writes a design note with every state, an optional static mockup and an
+  asset list before the frontend builder starts; review can compare screenshots with it
+- `image` (experimental): generates a raster image from the design's asset list through Codex or
+  Antigravity; the file's real format is checked, and a placeholder is used when nothing can
+- Contract rules and default tools for OpenAPI, AsyncAPI, protobuf, GraphQL, JSON Schema and
+  shared types (tRPC, ts-rest)
+
+### Changed
+- The four stack-specific builders (`be-go`, `be-node`, `fe-next`, `fe-angular`) became two
+  project-aware roles, `backend` and `frontend`; with the new `backend-architect` and `designer` the crew
+  stays at ten roles. The old names still
+  work as aliases
+- Priorities are now task, context, tokens: the right context per agent ranks above token cost
+- Setup is only about the machine; the project is `init`'s job
+- The contract gate follows the project's contract kinds and check command instead of a fixed
+  `contracts/` folder; with shared types only, the typecheck is the gate
+
+- Codex: GPT-6 Astra is now the plan-and-review model as well as the decider (high effort for
+  decisions, medium for planning and review); Sol builds, and stands in at S3 at high effort
+  only on accounts without Astra
+- A backend and a frontend in the same folder (`go.mod` next to `package.json`) are two units;
+  source code that no unit accounts for is reported by `init`
+
+- The workflow diagram reads left to right, one column per stage, with a badge and icon per role
+  and the version in the corner
+
+### Removed
+- `references/architecture.md` (now `references/architecture/modular-monolith.md`) and
+  `templates/project-guide.md` (the profile replaces it; an existing `CLAUDE.md`/`AGENTS.md` is
+  still read)
+
 ## [2.0.0] - 2026-11-11
 
 Agentack 2.0 replaces the Claude-only 0.1 under the same name. The workflow and its two gates are

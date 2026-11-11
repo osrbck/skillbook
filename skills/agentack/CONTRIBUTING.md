@@ -1,4 +1,4 @@
-# Contributing to Agentack 2.0
+# Contributing to Agentack
 
 Thanks for helping. The most useful contributions right now:
 

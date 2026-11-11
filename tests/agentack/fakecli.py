@@ -81,6 +81,21 @@ if model in [m for m in os.environ.get("FAKE_%s_NO_MODELS" % key, "").split(",")
         sys.stderr.write("Error: " + text + "\n")
     sys.exit(1)
 
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+if "Generate exactly one raster image" in prompt:
+    kind = os.environ.get("FAKE_%s_IMAGE" % key, "ok")
+    target = next(ln.split("Save it as: ", 1)[1].strip() for ln in prompt.splitlines() if "Save it as: " in ln)
+    if kind == "ok" and name == "codex":                 # codex drops it in its own folder
+        d = os.path.join(os.environ["HOME"], ".codex", "generated_images", "thread-1")
+        os.makedirs(d, exist_ok=True)
+        open(os.path.join(d, "ig_1.png"), "wb").write(PNG)
+    elif kind == "ok":
+        open(target, "wb").write(PNG)
+    elif kind == "jpg":
+        open(target, "wb").write(b"\xff\xd8\xff\xe0" + b"0" * 32)
+    elif kind == "svg":                                  # cheats: draws it as text
+        open(target, "w").write("<svg/>")
+
 if mode == "slow":
     time.sleep(60)
 if mode == "edit":

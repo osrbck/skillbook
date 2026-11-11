@@ -1,3 +1,3 @@
-"""Agentack 2.0 core: provider detection, roster resolution, limit-aware dispatch."""
+"""Agentack 2.1 core: provider detection, roster resolution, limit-aware dispatch."""
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"

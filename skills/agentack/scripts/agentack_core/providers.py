@@ -250,6 +250,16 @@ class Provider:
     read_only_enforced = False     # the CLI itself can be prevented from editing
     styles: Dict[str, str] = {}    # tier -> briefing style, where it differs from TIER_STYLE
     ratings: Dict[str, int] = {}   # skill -> 1..5 (see SKILLS); missing = 3, not yet rated
+    stand_ins: Dict[str, str] = {}  # tier -> model to try when the tier's own model is refused
+    image = False                  # its CLI can produce raster images headlessly (experimental)
+
+    def image_command(self, binary: str, spec: dict, prompt: str, cwd: str, out_file: str):
+        """argv + stdin for a run whose only job is to generate one image."""
+        return self.command(binary, spec, "write", prompt, cwd, out_file)
+
+    def image_dirs(self) -> List[Path]:
+        """Places outside the working directory where this CLI drops generated images."""
+        return []
     never: Tuple[str, ...] = ()    # words that rule a listed model out (too weak to be worth using)
     probe_minutes = 5              # how often limit_probe may run
     sign_in = ""                   # what the user runs to sign in
@@ -319,6 +329,10 @@ class Provider:
             info["auth"] = self.auth(binary)
         return info
 
+    def adjust(self, tier: str, spec: dict) -> dict:
+        """Last word on a tier's spec once its model is known (e.g. effort for a stand-in model)."""
+        return spec
+
     def resolve_tiers(self, binary: Optional[str]):
         """(tiers, unavailable): default tiers refined against the CLI's own model listing.
 
@@ -336,7 +350,7 @@ class Provider:
                 spec = {**(default or {}), "model": best}
                 if re.search(r"-(minimal|low|medium|high|xhigh|max)$", best.lower()):
                     spec.pop("effort", None)          # the slug already encodes the effort
-                tiers[tier] = spec
+                tiers[tier] = self.adjust(tier, spec)
             elif default and default["model"] in models:
                 continue
             elif default:
@@ -401,13 +415,24 @@ class Codex(Provider):
     bins = ("codex",)
     conductor = True
     tiers = {"S4": {"model": "gpt-6-astra", "effort": "high"},
-             "S3": {"model": "gpt-6.1-sol", "effort": "high"},
+             "S3": {"model": "gpt-6-astra", "effort": "medium"},
              "S2": {"model": "gpt-6.1-sol", "effort": "medium"},
              "S1": {"model": "gpt-6-luna", "effort": "low"}}
-    conductor_keywords = ("sol", "astra")
+    stand_ins = {"S3": "gpt-6.1-sol"}
+    conductor_keywords = ("astra",)   # Sol counts only where it is the account's S3 (no Astra)
     ratings = {"decide": 5, "plan": 4, "review": 4, "visual": 4, "backend": 4, "frontend": 4,
                "test": 4, "mechanical": 3}
-    styles = {"S3": "explicit", "S2": "explicit"}      # Sol wants every step spelled out
+    styles = {"S2": "explicit"}                        # Sol wants every step spelled out
+
+    def style(self, tier, spec):
+        if spec and spec.get("style") not in STYLE_GUIDE and "sol" in str(spec.get("model", "")).lower():
+            return "explicit"                          # also when Sol stands in for Astra at S3
+        return super().style(tier, spec)
+
+    def adjust(self, tier, spec):
+        if tier == "S3" and "sol" in spec["model"].lower():
+            spec = dict(spec, effort="high")           # Sol standing in for Astra: give it full effort
+        return spec
     sign_in = "codex login"
     read_only_enforced = True
     notes = ("Write runs use the workspace-write sandbox (no network by default); add extra_args in the "
@@ -427,6 +452,17 @@ class Codex(Provider):
                  "--skip-git-repo-check", "-C", cwd, "-o", out_file, "-"]
         return argv, prompt
 
+    image = True                   # built-in image_gen tool
+
+    def image_command(self, binary, spec, prompt, cwd, out_file):
+        argv = [binary, "exec", "--enable", "image_generation", "--model", spec["model"],
+                "--sandbox", "workspace-write", "--skip-git-repo-check", "-C", cwd, "-o", out_file, "-"]
+        return argv, prompt
+
+    def image_dirs(self):
+        home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+        return [home / "generated_images"]
+
     def final(self, stdout, out_file):
         try:
             text = Path(out_file).read_text(encoding="utf-8", errors="replace").strip()
@@ -434,7 +470,7 @@ class Codex(Provider):
             text = ""
         return text, False
 
-    match = {"S4": (("astra",),), "S3": (("sol",),), "S2": (("sol",),), "S1": (("luna",),)}
+    match = {"S4": (("astra",),), "S3": (("astra",), ("sol",)), "S2": (("sol",),), "S1": (("luna",),)}
 
     def list_models(self, binary):
         """Models the app-server lists for this login. A listed model can still be refused for the
@@ -465,6 +501,7 @@ class Antigravity(Provider):
     name, label, vendor = "agy", "Antigravity", "google"
     bins = ("agy",)
     conductor = True               # as a skill in the Antigravity app, IDE or CLI
+    image = True                   # Gemini image models through the agent
     conductor_keywords = ("karbon", "carbon", "argon", "3.1-pro", "gemini-pro")
     # Gemini is used where it is strong: analysis, review, long context and anything visual run on
     # Argon (Karbon where the plan has it). It trails on headless coding loops, so its build and

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Agentack 2.0 helper: detect agent CLIs, keep the roster, dispatch roles, track usage limits.
+"""Agentack 2.1 helper: detect agent CLIs, read the project, keep the roster, dispatch roles, track limits.
 
   detect                          which agent CLIs are installed (JSON)
   setup --providers a,b [...]     save the roster for the chosen providers
+  init [--set key=value]          scan this project (stack, units, architecture, contracts, commands)
+  project [--md]                  the saved project profile, and whether the repository moved on since
   roster [--md]                   who does what (configured, ignoring live limits)
   strengths [--md]                what each provider is rated at, per kind of work
   check-conductor --host H --model M
@@ -13,6 +15,7 @@
   runs | report | limits          bookkeeping
   verify                          ping every model in the roster; drop the ones your account lacks
   doctor [--ping]                 show the setup (ping spends a few tokens per provider)
+  image --prompt TEXT --out FILE  generate one raster image through a provider that can (experimental)
   worktree add|apply|remove NAME  isolated working copies for overlapping writers
   hook install|remove             optional Claude Code status line hook that records usage
 
@@ -34,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from agentack_core import __version__, config, limits, roster, runs  # noqa: E402
+from agentack_core import project as projectmod  # noqa: E402
 from agentack_core.providers import PROVIDERS, RATINGS_REVIEWED, SKILLS, TIERS, model_refusal  # noqa: E402
 
 
@@ -59,7 +63,7 @@ def detect_host() -> str:
 
 def need_config(cfg: dict):
     if not cfg.get("_configured"):
-        return fail("Agentack 2.0 is not set up yet", next="run `detect`, ask the user which providers to "
+        return fail("Agentack is not set up yet", next="run `detect`, ask the user which providers to "
                     "use, then `setup --providers ...`", code=3)
     return None
 
@@ -70,7 +74,8 @@ def environment(project: Path) -> dict:
     return {"python": "%d.%d" % sys.version_info[:2], "git": bool(shutil.which("git")),
             "git_repo": (project / ".git").exists(), "project": str(project),
             "port_tools": bool(shutil.which("lsof") or shutil.which("ss")),
-            "project_guide": next((n for n in ("CLAUDE.md", "AGENTS.md") if (project / n).is_file()), None)}
+            "project_guide": next((n for n in ("CLAUDE.md", "AGENTS.md") if (project / n).is_file()), None),
+            "project_initialised": bool((config.read_json(projectmod.project_file(project)) or {}).get("project"))}
 
 
 def next_steps(cfg: dict, project: Path) -> list:
@@ -101,9 +106,9 @@ def next_steps(cfg: dict, project: Path) -> list:
     if not env["git"] or not env["git_repo"]:
         steps.append({"level": "action", "text": "this folder is not a git repository",
                       "fix": "run /agentack inside your project's repository (git init if it is new)"})
-    elif not env["project_guide"]:
-        steps.append({"level": "action", "text": "the project has no CLAUDE.md / AGENTS.md",
-                      "fix": "/agentack Scan this repo and create the project guide from the template"})
+    elif not env["project_initialised"]:
+        steps.append({"level": "info", "text": "this project has not been scanned yet; it happens by itself "
+                      "on the first task, or now with /agentack init"})
     fb = cfg["limit_fallback"]
     for row in roster.table(cfg):
         if row["fit"] and row["fit"] <= 2:
@@ -144,7 +149,7 @@ def crew_summary(cfg: dict) -> dict:
     rows = {r["role"]: r for r in roster.table(cfg)}
     provs = cfg.get("providers") or {}
     active = [p for p in cfg.get("order") or [] if not (provs.get(p) or {}).get("disabled")]
-    builder = (rows["be-go"]["primary"] or "").split(":")[0]
+    builder = (rows["backend"]["primary"] or "").split(":")[0]
     reviewer = (rows["reviewer"]["primary"] or "").split(":")[0]
     deciders = roster.candidates("decider", cfg)
     second = next((c for c in deciders[1:] if c["vendor"] != deciders[0]["vendor"]), None) if deciders else None
@@ -156,8 +161,10 @@ def crew_summary(cfg: dict) -> dict:
     return {
         "in_use": active,
         "set_aside": [p for p in cfg.get("order") or [] if p not in active],
-        "builds": rows["be-go"]["primary"], "mechanical": rows["scout"]["primary"],
+        "builds": rows["backend"]["primary"], "mechanical": rows["scout"]["primary"],
         "plans": rows["architect"]["primary"], "reviews": rows["reviewer"]["primary"],
+        "designs": rows["designer"]["primary"],
+        "images": (runs.image_providers_cfg(cfg) or [None])[0],
         "review_is_independent": bool(builder and reviewer and
                                       PROVIDERS[builder].vendor != PROVIDERS[reviewer].vendor),
         "decides": rows["decider"]["primary"],
@@ -173,6 +180,7 @@ def cmd_detect(args, cfg, project):
     installed = [p["name"] for p in found if p["installed"]]
     for p in found:
         p["ratings"] = {k: roster.rating(cfg, p["name"], k) for k in SKILLS}
+        p["can_generate_images"] = PROVIDERS[p["name"]].image
     by_fit = sorted(installed, key=lambda n: -sum(roster.rating(cfg, n, k) for k in SKILLS))
     return out({"version": __version__, "configured": cfg.get("_configured", False),
                 "selected": cfg.get("order"), "host": detect_host(), "environment": environment(project),
@@ -264,6 +272,7 @@ def cmd_setup(args, cfg, project):
     for item in args.role or []:         # role=p1,p2
         try:
             role, chain = item.split("=", 1)
+            role = roster.canonical(role)[0]
             chain = [c for c in chain.split(",") if c]
             assert role in roster.ROLES and chain and all(c in cfg["providers"] for c in chain)
         except (ValueError, AssertionError):
@@ -295,6 +304,13 @@ def cmd_roster(args, cfg, project):
         return err
     data = _roster_payload(cfg)
     data["next_steps"] = next_steps(cfg, project)
+    prof = projectmod.effective(cfg)
+    names = {"backend": [], "frontend": []}
+    for u in (prof or {}).get("units") or []:
+        for layer in ("backend", "frontend"):
+            if u["layer"] in (layer, "fullstack"):
+                names[layer].append(projectmod.label(layer, u))
+    data["builders"] = {k: sorted(set(v)) for k, v in names.items()} if prof else None
     if not args.md:
         return out(data)
     fb = data["limit_fallback"]
@@ -303,8 +319,11 @@ def cmd_roster(args, cfg, project):
         model = r["primary"] or "— none"
         if r["substituted"]:
             model += " (%s)" % r["runs_on"]
+        role = r["role"]
+        if data["builders"] and data["builders"].get(role):
+            role += " (%s)" % ", ".join(data["builders"][role])
         lines.append("| %s | %s %s | %s | %s | %s | %s |" % (
-            r["role"], r["tier"], roster.TIER_PURPOSE[r["tier"]], model,
+            role, r["tier"], roster.TIER_PURPOSE[r["tier"]], model,
             ("%d/5 %s" % (r["fit"], r["skill"])) if r["fit"] else "—", r["style"] or "—",
             ", ".join(r["fallbacks"]) or "—"))
     lines.append("")
@@ -339,6 +358,107 @@ def cmd_strengths(args, cfg, project):
     return 0
 
 
+def _attention(prof: dict) -> list:
+    """What the conductor should confirm by looking at the code. Never questions for the user."""
+    items = []
+    a = prof["architecture"]
+    if a.get("confidence") == "low":
+        items.append("architecture is a guess (%s): look at the layout and correct it with "
+                     "`init --set architecture=<kind>` if needed" % "; ".join(a.get("why") or []))
+    if not prof["units"]:
+        items.append("no application was recognised: find the entry points and add them with "
+                     "`init --set units.<name>.path=<dir> --set units.<name>.layer=backend|frontend|fullstack "
+                     "--set units.<name>.stack=<language or framework>`")
+    for x in prof.get("unclaimed") or []:
+        items.append("%d %s files (mostly in %s) belong to no unit: the scan missed an application. Find its "
+                     "root and add it with `init --set units.<name>.path=<dir> --set units.<name>.layer=backend "
+                     "--set units.<name>.stack=%s`" % (x["files"], x["language"], x["mostly_in"], x["language"]))
+    for u in prof["units"]:
+        if not u.get("commands", {}).get("test"):
+            items.append("%s has no test command: find it (README, CI, Makefile) and set "
+                         "`units.%s.commands.test`" % (u["name"], u["name"]))
+    c = prof.get("contracts") or {}
+    if c.get("kinds") and not c.get("check") and set(c["kinds"]) - {"typed"}:
+        items.append("contracts (%s) have no single check command: the contract gate will use "
+                     "contract-guard with the default tools, unless CI has one (`contracts.check`)"
+                     % ", ".join(c["kinds"]))
+    if prof.get("guide"):
+        items.append("read %s once: where it names other commands or rules, record them with `init --set`"
+                     % " / ".join(prof["guide"]))
+    return items
+
+
+def _init_md(payload: dict) -> str:
+    prof = payload["profile"]
+    lines = ["**Project profile** (%s)" % ("saved to .agentack.json" if payload.get("written") else
+                                          "unchanged" if payload.get("unchanged") else "not saved")]
+    lines.append(projectmod.describe(prof))
+    if payload.get("changes"):
+        lines.append("- Changed since last scan: " + "; ".join(payload["changes"]))
+    lines.append("- Builders for this project: " + ", ".join(payload["builders"]) if payload["builders"]
+                 else "- Builders: none (no application found)")
+    for item in payload["attention"]:
+        lines.append("- To check: " + item)
+    return "\n".join(lines)
+
+
+def cmd_init(args, cfg, project):
+    if args.set and not args.dry_run:
+        try:
+            projectmod.set_override(project, args.set)
+        except ValueError as e:
+            return fail(str(e))
+    old = (config.read_json(projectmod.project_file(project)) or {}).get("project")
+    scanned = projectmod.scan(project)
+    changed, path = (False, None) if args.dry_run else projectmod.save(project, scanned)
+    if not args.dry_run:
+        runs.work_dir(project)                       # makes sure .agentack/ is ignored by git
+    prof = projectmod.effective(config.load(project)) if not args.dry_run else scanned
+    builders = [a for u in prof["units"] for a in u["agents"]]
+    payload = {"written": str(path) if changed else None, "unchanged": bool(path) and not changed,
+               "first_time": old is None, "changes": projectmod.changes(old, scanned),
+               "builders": builders, "attention": _attention(prof), "profile": prof,
+               "summary": projectmod.describe(prof)}
+    if args.md:
+        print(_init_md(payload))
+        return 0
+    return out(payload)
+
+
+def cmd_project(args, cfg, project):
+    prof = projectmod.effective(cfg)
+    if not prof:
+        return fail("this project has not been initialised", code=4, next="run `init`")
+    saved = (config.read_json(projectmod.project_file(project)) or {}).get("project")
+    moved = projectmod.changes(saved, projectmod.scan(project))
+    if args.md:
+        print(projectmod.describe(prof) + ("\n- Changed since the scan: " + "; ".join(moved) +
+                                          " (run `init` again)" if moved else ""))
+        return 0
+    return out({"profile": prof, "summary": projectmod.describe(prof), "stale": moved,
+                "builders": [a for u in prof["units"] for a in u["agents"]]})
+
+
+def cmd_image(args, cfg, project):
+    err = need_config(cfg)
+    if err is not None:
+        return err
+    text = args.prompt or ""
+    if args.prompt_file:
+        try:
+            text = Path(args.prompt_file).read_text(encoding="utf-8")
+        except OSError as e:
+            return fail("cannot read the prompt file: %s" % e)
+    if not text.strip():
+        return fail("give the image description with --prompt or --prompt-file")
+    limits.refresh(cfg)
+    try:
+        return out(runs.image(project, cfg, text, Path(args.out).resolve(), args.aspect, args.timeout))
+    except roster.NoModel as e:
+        return fail(str(e), code=3, next="use an SVG, an icon from the project's set or a placeholder, "
+                                         "and list the missing image in the closing report")
+
+
 def cmd_check_conductor(args, cfg, project):
     return out(roster.check_conductor(args.host, args.model, cfg))
 
@@ -355,7 +475,9 @@ def cmd_dispatch(args, cfg, project):
     host = args.host or detect_host()
     try:
         return out(runs.dispatch(project, args.role, brief, cwd, args.mode, avoid, host, args.timeout, cfg,
-                                 args.skill))
+                                 args.skill, args.unit))
+    except runs.Unclear as e:
+        return fail(str(e), code=2, role=args.role)
     except roster.NoModel as e:
         return fail(str(e), code=3, role=args.role)
 
@@ -366,14 +488,14 @@ def cmd_resolve(args, cfg, project):
         return err
     limits.refresh(cfg)
     try:
-        return out(roster.pick(args.role, cfg, avoid=[a for a in (args.avoid or "").split(",") if a],
+        return out(roster.pick(roster.canonical(args.role)[0], cfg, avoid=[a for a in (args.avoid or "").split(",") if a],
                                skill=args.skill))
     except roster.NoModel as e:
         return fail(str(e), code=3, role=args.role)
 
 
 def cmd_new_brief(args, cfg, project):
-    if args.role not in roster.ROLES:
+    if roster.canonical(args.role)[0] not in roster.ROLES:
         return fail("unknown role: %s" % args.role, roles=list(roster.ROLES))
     return out(runs.new_brief(project, args.role, cfg, args.style))
 
@@ -444,7 +566,7 @@ def cmd_verify(args, cfg, project):
     """Ping every distinct model of the selected providers; drop the ones the account lacks."""
     cfg = {k: v for k, v in config.load(None).items() if not k.startswith("_")}
     if not cfg.get("order"):
-        return fail("Agentack 2.0 is not set up yet", code=3)
+        return fail("Agentack is not set up yet", code=3)
     limits.clear_missing(cfg["order"])
     results, removed = [], []
     for name in cfg["order"]:
@@ -472,12 +594,15 @@ def cmd_verify(args, cfg, project):
             res = seen[spec["model"]]
             while res.get("model_unavailable"):
                 removed.append("%s:%s (%s)" % (name, spec["model"], tier))
-                nxt = prov.pick_model(tier, listed, exclude=[m for m, r in seen.items() if r.get("model_unavailable")])
+                bad = [m for m, r in seen.items() if r.get("model_unavailable")]
+                nxt = prov.pick_model(tier, listed, exclude=bad)
+                if not nxt and prov.stand_ins.get(tier) not in [None] + bad + [spec["model"]]:
+                    nxt = prov.stand_ins[tier]              # no listing to choose from: the known stand-in
                 if not nxt:
                     entry.setdefault("unavailable", {})[tier] = spec["model"]
                     entry["tiers"][tier] = None
                     break
-                spec = dict(spec, model=nxt)            # the next best model this provider lists
+                spec = prov.adjust(tier, dict(spec, model=nxt))   # the next best model this provider lists
                 if spec.get("effort") and nxt.lower().endswith("-" + spec["effort"]):
                     spec.pop("effort")
                 entry["tiers"][tier] = spec
@@ -519,6 +644,8 @@ def cmd_doctor(args, cfg, project):
                     entry["auth"] = "ok"
         report["providers"].append(entry)
     report["environment"] = environment(project)
+    prof = projectmod.effective(cfg)
+    report["project"] = projectmod.describe(prof, short=True) if prof else "not initialised (/agentack init)"
     if cfg.get("_configured"):
         report["notes"] = roster.notes(cfg)
         report["next_steps"] = next_steps(cfg, project)
@@ -616,6 +743,18 @@ def main(argv=None) -> int:
     s.add_argument("--force", action="store_true")
     s.set_defaults(fn=cmd_setup)
 
+    s = sub.add_parser("init")
+    s.add_argument("--set", action="append", metavar="KEY=VALUE",
+                   help="correct the scan: architecture=microservices, contracts.check=CMD, "
+                        "units.NAME.commands.test=CMD, units.NAME.layer=backend (repeatable; empty value clears)")
+    s.add_argument("--dry-run", action="store_true", help="scan and print, write nothing")
+    s.add_argument("--md", action="store_true", help="print a short report instead of JSON")
+    s.set_defaults(fn=cmd_init)
+
+    s = sub.add_parser("project")
+    s.add_argument("--md", action="store_true")
+    s.set_defaults(fn=cmd_project)
+
     s = sub.add_parser("roster")
     s.add_argument("--md", action="store_true", help="print a Markdown table")
     s.set_defaults(fn=cmd_roster)
@@ -637,6 +776,8 @@ def main(argv=None) -> int:
             s.add_argument("--mode", choices=["read", "write"], help="default depends on the role")
             s.add_argument("--host", choices=["claude", "codex", "agy"], help="the conductor's own CLI")
             s.add_argument("--timeout", type=float, help="minutes")
+            s.add_argument("--unit", help="which unit of the project (see `project`); needed only when "
+                                          "the project has several of that layer")
         s.set_defaults(fn=fn)
 
     s = sub.add_parser("new-brief")
@@ -675,6 +816,14 @@ def main(argv=None) -> int:
     s = sub.add_parser("verify")
     s.add_argument("--ping-timeout", type=int, default=120)
     s.set_defaults(fn=cmd_verify)
+
+    s = sub.add_parser("image")
+    s.add_argument("--prompt", help="what the image shows")
+    s.add_argument("--prompt-file", help="a file with the description, instead of --prompt")
+    s.add_argument("--out", required=True, help="where to save it; the extension follows the real format")
+    s.add_argument("--aspect", help="aspect ratio, e.g. 16:9, 1:1, 4:5")
+    s.add_argument("--timeout", type=int, default=300, help="seconds per provider (default 300)")
+    s.set_defaults(fn=cmd_image)
 
     s = sub.add_parser("worktree")
     s.add_argument("action", choices=["add", "apply", "remove"])

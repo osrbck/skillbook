@@ -1,25 +1,45 @@
-# Agentack 2.0 — agentic stack
+# Agentack 2.1 — agentic stack
 
-**Sözleşme odaklı modüler monolit projeler için, conductor yönetiminde çok sağlayıcılı ajan workflow'u.**
+**Her dilde ve her mimaride full stack projeler için, conductor yönetiminde çok sağlayıcılı ajan workflow'u.**
 
 Claude Code, Codex ya da Antigravity'de `/agentack` yazınca oturumun bir *conductor*'a dönüşür: işi ölçer, işi
 doğru bitirebilecek en küçük ekibi seçer ve her rolü zaten kullandığın ajan CLI'larındaki doğru
 modele yönlendirir: Claude Code, Codex, Antigravity, Cursor, Kiro.
 
-Desteklenen stack'ler: **Next.js · Angular · Node.js (TypeScript) · Go**.
+Önce projeni okur: backend'de Go, Java, Kotlin, C#, Node/TypeScript, Python, Ruby, PHP, Elixir,
+Rust; önyüzde Angular, React, Next.js, Vue, Nuxt, Svelte, Flutter ve dahası; modüler monolit,
+mikroservis, full stack framework ya da klasik monolit. Ekip projeye uyar, proje ekibe değil.
 
-> 🇬🇧 English: [README.md](README.md) · 0.1'den mi geliyorsun? Bkz. [0.1'den yükseltme](#01den-yükseltme).
+> 🇬🇧 English: [README.md](README.md) · Eski sürümden mi geliyorsun? Bkz. [Yükseltme](#yükseltme).
 
 <p align="center">
-  <img src="../../docs/agentack/agentack-flow.tr.svg" alt="Agentack 2.0 ekibi: conductor uzman rollere dallanır, her rol S1–S4 seviyelerinden birine bağlıdır" width="100%">
+  <img src="../../docs/agentack/agentack-flow.tr.svg" alt="Agentack ekibi: conductor uzman rollere dallanır, her rol S1–S4 seviyelerinden birine bağlıdır" width="100%">
 </p>
 
 ## Öne çıkanlar
 
 - **Tek sağlayıcı ya da birkaçı.** Roller modellere değil seviyelere bağlı. Tek sağlayıcı bütün
   workflow'u çalıştırır; iki üç sağlayıcı bağımsız review ve yedekleme ekler.
-- **İşe göre ekip.** On rol var, çoğu iş ikisiyle biter, bir yazım hatası hiçbirini gerektirmez.
-  Conductor önce ölçer; bir rolü ancak tetikleyicisi varsa çağırır.
+- **Her stack, her mimari.** `/agentack init` repoyu okur: birimleri, dilleri, framework'leri,
+  mimariyi, contract'ları ve komutları. Bir backend ve bir frontend builder rolü var; senin
+  projende bunlar `be-go`, `be-java`, `be-csharp`, `fe-angular`, `fe-next` ya da `fs-next` olur,
+  her biri kendi komutları, kuralları ve dil alışkanlıklarıyla. Kimseden projeyi anlatması
+  istenmez.
+- **İşe göre ekip.** On rol var, çoğu iş ikisiyle biter, bir yazım hatası hiçbirini
+  gerektirmez. Conductor önce ölçer; bir rolü ancak tetikleyicisi varsa çağırır.
+- **Gerektiğinde önce backend tasarımı.** Canlı veride şema değişikliği, eşzamanlılıkta bozulmaması
+  gereken kurallar, modüller ya da servisler arası yazma: `backend-architect` önce veri modelini,
+  migration adımlarını, değişmez kuralları, transaction sınırlarını, hata senaryolarını ve mutlaka
+  olması gereken testleri belirler. Builder bu notu uygular, reviewer ona göre kontrol eder.
+  Sıradan backend işleri bu adımı atlar.
+- **Gerektiğinde önce tasarım.** Yeni bir ekran ya da görsel yenileme önce `designer`'a gider;
+  görsel işte en iyi sağlayıcıda çalışır: her durumu içeren bir tasarım notu, isteğe bağlı statik
+  bir maket ve bir görsel listesi çıkarır. Sıradan arayüz işleri bu adımı atlar. Listedeki
+  resimler Codex ya da Antigravity üzerinden üretilebilir (deneysel); review ekran görüntülerini
+  tasarımla karşılaştırır.
+- **Üç katmanlı test.** Builder kendi kodunun unit testlerini yazar ve çalıştırır; davranış bir
+  sınırı geçtiğinde `qa` contract, entegrasyon ve e2e testlerini ekler; reviewer testlerin
+  davranışı kanıtlayıp kanıtlamadığına bakar. Projenin kontrolleri geçmeden iş bitmez.
 - **Bağımsız review.** Birden fazla sağlayıcı varsa review, kodu yazandan farklı bir sağlayıcıda yapılır.
 - **Her modele kendi dilinde brief.** Plan yapan modellere serbestlik, harfiyen uygulayan modellere
   adım adım talimat, mekanik modellere kural ve örnek. En güçlü modele sadece açık soru ve ucuz
@@ -28,7 +48,8 @@ Desteklenen stack'ler: **Next.js · Angular · Node.js (TypeScript) · Go**.
   sağlayıcıda, o seviye kimsede yoksa bir alt seviyede çalışır. Elinde olan model asla düşürülmez.
 - **Limit bazlı model değişimi** (isteğe bağlı). Bir sağlayıcı kullanım limitine yaklaşınca aynı
   seviyedeki sıradaki sağlayıcı işi devralır; gerekirse görevin ortasında.
-- **Öncelik sırası:** iş doğru bitsin, en az eforla bitsin, en az token harcansın.
+- **Öncelik sırası: görev, bağlam, token.** İş doğru bitsin; her ajan projenin ihtiyacı olan
+  kısmını alsın, fazlasını değil; sonra en az ajan ve en az token.
 
 ## Hızlı başlangıç
 
@@ -47,34 +68,60 @@ Setup *senin* bilgisayarında neyin kurulu ve giriş yapılmış olduğuna bakar
 sorar, her modeli tek kelimelik bir istekle dener ve bir eksik varsa tam olarak neyi düzeltmen
 gerektiğini söyler. Sabit bir senaryosu yoktur, çünkü iki bilgisayarın kurulumu aynı olmaz.
 
+Sonra bir projede:
+
+```
+/agentack init
+```
+
+ya da doğrudan görev ver: bir projedeki ilk görev `init`'i kendisi çalıştırır ve başlamadan önce
+ne bulduğunu raporlar.
+
 ## Komutlar
 
 | Komut | Ne yapar |
 |---|---|
 | `/agentack <görev>` | İşi boyutlandırır, gereken ekibi çalıştırır, raporlar |
 | `/agentack setup` | Bu bilgisayar için sağlayıcıları ve seçenekleri belirler; istediğin zaman tekrar çalıştır |
+| `/agentack init` | Bu projeyi okur: birimler, stack'ler, mimari, contract'lar, komutlar |
 | `/agentack verify` | Her modeli ve sağlayıcıyı yeniden dener; düzelttiğin sağlayıcıyı geri getirir |
-| `/agentack roster` | Kadro: rol, seviye, model, uygunluk puanı, yedekler |
+| `/agentack roster` | Kadro: rol (bu projedeki builder adlarıyla), seviye, model, uygunluk puanı, yedekler |
 | `/agentack limits` | Sağlayıcı başına kullanım ve şu an atlananlar |
 | `/agentack doctor` | Sağlık kontrolü: CLI'lar, giriş, ortam, sonraki adımlar |
 | `/agentack resume` | Yarım kalan işe devam eder; başka bir host'tan da olur |
 
 ```
-/agentack billing modülüne fatura listeleme endpoint'i ve Next.js'te liste sayfası ekle
+/agentack billing modülüne fatura listeleme endpoint'i ve admin uygulamasında liste sayfası ekle
 /agentack fatura boş durum metnindeki yazım hatasını düzelt
 ```
 
-Yeni bir projede `/agentack Bu repoyu tara ve proje rehberini oluştur` ile başla. Rehber
-(`CLAUDE.md` / `AGENTS.md`) uygulamaları, modülleri ve komutları tutar; skill'in varsayılanlarının
-üstündedir. Conductor sadece sen istersen commit atar ya da PR açar.
+Conductor sadece sen istersen commit atar ya da PR açar.
+
+## Projen
+
+`init` bulduklarını proje kökündeki `.agentack.json` dosyasına yazar (commit'lenebilir) ve birkaç
+satırla raporlar:
+
+| Ne bulur | Nereden | Ne için kullanır |
+|---|---|---|
+| **Birimler**: her uygulama ya da servis, dili, framework'ü ve katmanı | manifest'ler: `go.mod`, `pom.xml`, `*.csproj`, `package.json`, `pyproject.toml`, `Gemfile`, `composer.json`, `Cargo.toml`, `mix.exs`, `pubspec.yaml` … | builder'lara ad vermek (`be-java`, `fe-angular`, `fs-next`) ve her birine kendi stack'inin alışkanlıklarını vermek |
+| **Mimari**: modüler monolit, mikroservis, full stack uygulama, monolit, serverless, sadece önyüz | modül klasörleri, servis klasörleri, container ve Kubernetes ayarları, sınır araçları | builder'ların uyduğu, reviewer'ın kontrol ettiği sınır kuralları |
+| **Contract'lar**: OpenAPI, AsyncAPI, protobuf, GraphQL, JSON Schema, paylaşılan tipler (tRPC) | spec dosyaları, `buf.yaml`, codegen ayarları | contract kapısı ve araçları |
+| **Komutlar**: test, lint, typecheck, build, contract kontrolü | paket script'leri, Makefile, justfile, Taskfile, stack başına varsayılanlar | her builder'ın göstermesi gereken kanıt |
+
+Taramanın netleştiremediğini conductor README'ye ya da CI ayarlarına bakarak kendisi bulur ve
+`init --set` ile kaydeder; soruya dönüşmez. Modüler monolit, Agentack'in başından beri sunduğu her
+şeyi almaya devam eder (modül sınırları, modül başına contract, outbox event'leri); mikroservis
+reposu ise bunların yerine timeout, idempotency ve deploy sırası kontrollerini alır. Mimari başına
+kurallar: [`references/architecture/`](skills/agentack/references/architecture/).
 
 ## Seviyeler
 
 | Seviye | Amaç | Roller | Claude | Codex | Antigravity |
 |---|---|---|---|---|---|
-| **S4** | geri dönüşü pahalı kararlar | decider | Fable | GPT-6 Astra | Gemini 4 Karbon, yoksa Argon |
-| **S3** | plan ve kontrol | conductor, architect, reviewer | Opus | GPT-6.1 Sol (yüksek efor) | Gemini 4 Argon, yoksa 3.1 Pro |
-| **S2** | inşa | be-go, be-node, fe-next, fe-angular, qa | Sonnet | GPT-6.1 Sol (orta efor) | Gemini 3.1 Pro |
+| **S4** | geri dönüşü pahalı kararlar | decider | Fable | GPT-6 Astra (yüksek efor) | Gemini 4 Karbon, yoksa Argon |
+| **S3** | plan, tasarım ve kontrol | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, yoksa Sol (yüksek efor) | Gemini 4 Argon, yoksa 3.1 Pro |
+| **S2** | inşa | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (orta efor) | Gemini 3.1 Pro |
 | **S1** | mekanik iş | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 3.8 Flash |
 
 Cursor (Composer, Auto) ve Kiro (Auto) S1 ve S2'yi karşılar; review ve karar rolleri herhangi bir
@@ -104,7 +151,7 @@ değiştirilebilir. Puanların tarihi ve dayanakları:
 
 | Modeller | Brief'te ne olur |
 |---|---|
-| Opus ve dengi (S3) | hedef, bağlam, kısıtlar, "bitti" neye benzer |
+| Opus, GPT-6 Astra ve dengi (S3) | hedef, bağlam, kısıtlar, "bitti" neye benzer |
 | Sonnet ve dengi (S2) | adı belli dosyalar, adımlar, çıktı biçimi, sınırlar |
 | GPT-6.1 Sol, Auto yönlendiriciler | sırayla her adım, hiçbir şey örtük değil |
 | Fable, GPT-6 Astra, Gemini 4 Karbon (S4) | açık soru ve kanıt, bir meslektaşa sorar gibi |
@@ -119,9 +166,9 @@ eskalasyon.
 | Yol | Ne zaman | Ekip |
 |---|---|---|
 | **Direkt** | en fazla 2 dosya, yeri belli, contract/şema/auth etkisi yok, bir komutla doğrulanabiliyor | sadece conductor |
-| **Hızlı** | tek modül, tek katman, contract değişmiyor | bir builder → reviewer |
-| **Standart** | contract değişiyor, 2 modül, 5'ten fazla dosya ya da sebep belirsiz | architect → contract kapısı → builder'lar → reviewer (gerekirse qa) |
-| **Ağır** | yeni modül, şema değişikliği, auth/ödeme, kırıcı contract | decider (+ ikinci görüş) → Standart ekip + qa |
+| **Hızlı** | tek modül, servis ya da özellik, tek katman, contract değişmiyor | bir builder → reviewer |
+| **Standart** | contract değişiyor, iki modül ya da servis, 5'ten fazla dosya ya da sebep belirsiz | architect → contract kapısı → builder'lar → reviewer (gerekirse qa) |
+| **Ağır** | yeni modül ya da servis, şema değişikliği, auth/ödeme, kırıcı contract | decider (+ ikinci görüş) → Standart ekip + qa |
 
 İki kapı hiç esnemez: **contract kontrolü geçmeden inşa başlamaz** ve **bağımsız review olmadan
 iş bitmiş sayılmaz** (Direkt yol hariç). İş ölçülenden geniş çıkarsa conductor onu bir üst yola
@@ -146,29 +193,29 @@ reddederse ya da çalışma sırasında reddedilirse) atlanır ve hatırlanır.
 
 ```
 /agentack → conductor (Claude Code, Codex ya da Antigravity oturumun)
-               │  ölç → boyutlandır → yol → kapılar
+               │  proje profili → ölç → boyutlandır → yol → kapılar
                ▼
-            agentack.py dispatch ── rol → seviye → sağlayıcı + model
+            agentack.py dispatch ── rol → birim → seviye → sağlayıcı + model
                ├─ claude -p · codex exec · agy -p · agent -p · kiro-cli chat --no-interactive
                └─ Claude Code'da Claude işçileri yerel alt ajan olarak çalışır
 ```
 
-- İşçiler reponda dar bir brief'le, arayüzsüz çalışır ve asla commit atmaz.
+- İşçiler reponda arayüzsüz çalışır, asla commit atmaz. Ellerinde dar bir brief ve proje
+  profilinin rollerine düşen kısmı olur (builder: kendi birimi, komutları, mimari kuralları ve
+  stack alışkanlıkları; reviewer: projenin haritası ve review kontrolleri).
 - Salt-okur roller mümkün olan yerde CLI tarafından zorlanır, her çalıştırmadan sonra `git status` ile doğrulanır.
 - Çalıştırmalar, kayıtlar ve brief'ler `<proje>/.agentack/` altında durur (git'e girmez).
 - Yardımcı script saf Python'dır, bağımlılığı yoktur. Sadece bilgisayarındaki ajan CLI'larıyla konuşur.
-- Bir proje, `.agentack.json` dosyasını commit ederek sağlayıcıları kısıtlayabilir: `{"allowed_providers": ["claude"]}`.
+- `.agentack.json` ile bir proje sağlayıcıları da kısıtlayabilir: `{"allowed_providers": ["claude"]}`.
 
-Agentack **sözleşme odaklı modüler monolit** varsayar ve bunu korumaya yardım eder: modüller kendi
-verisinin sahibidir ve dar bir public yüzey açar; contract'lar (OpenAPI 3.1, AsyncAPI 3, RFC 9457
-hataları) `contracts/<modül>/` altında durur ve kod onlardan üretilir. Bkz.
-[`architecture.md`](skills/agentack/references/architecture.md) ve
+Contract'ı olan her projede contract önce gelir: kodu değil önce contract'ı değiştirirsin, üretilen
+kod elle düzenlenmez, kırıcı değişiklik yeni sürüm ve senin onayını ister. Bkz.
 [`contracts.md`](skills/agentack/references/contracts.md).
 
 ## Gereksinimler
 
 - **Conductor:** Claude Code, Codex ya da Antigravity (uygulama, IDE ya da CLI), plan ve kontrol
-  sınıfı bir modelde (Opus, GPT-6.1 Sol, Gemini 4 Argon ya da üstü). Daha küçük bir modelde
+  sınıfı bir modelde (Opus, GPT-6 Astra, Gemini 4 Argon ya da üstü). Daha küçük bir modelde
   Agentack uyarır ve devam etmeden önce onay ister. Kiro'nun conductor olması planlanıyor;
   şimdilik sağlayıcı olarak çalışıyor.
 - **Sağlayıcılar:** Claude Code, Codex, Antigravity (`agy`), Cursor CLI, Kiro CLI'dan en az biri.
@@ -176,9 +223,14 @@ hataları) `contracts/<modül>/` altında durur ve kod onlardan üretilir. Bkz.
 
 Güncelleme: `cd ~/skillbook && git pull && ./install.sh agentack --all` · Kaldırma: `./install.sh agentack --uninstall`.
 
-### 0.1'den yükseltme
+### Yükseltme
 
-2.0, sadece Claude ile çalışan 0.1'in yerini aynı ad ve komutla alır. `install.sh agentack` yeni skill'i
+**2.0'dan:** skillbook içinde `./install.sh agentack --all`'u tekrar çalıştır. Stack'e özel dört builder (`be-go`, `be-node`,
+`fe-next`, `fe-angular`) artık projeyi tanıyan `backend` ve `frontend` rolleri; eski adlar takma
+ad olarak çalışmaya devam eder. Her projede bir kez `/agentack init` çalıştır ya da doğrudan
+görev ver.
+
+**0.1'den:** 2.0, sadece Claude ile çalışan 0.1'in yerini aynı ad ve komutla aldı. `install.sh agentack` yeni skill'i
 eskisinin üstüne kurar ve 0.1'in `~/.claude/agents/` altına koyduğu on global alt ajanı
 `~/.claude/backups/` altına taşır (2.0 rol talimatlarını skill'in içinde tutar, global bir şeye
 gerek kalmaz). Sonra bir kez `/agentack setup` çalıştır. 0.1 için yazılmış proje rehberleri
@@ -190,6 +242,8 @@ gerek kalmaz). Sonra bir kez `/agentack setup` çalıştır. 0.1 için yazılmı
 |---|---|
 | Claude Code | gerçek CLI ile test edildi |
 | Codex, Antigravity, Cursor, Kiro | her CLI'ın dokümanına göre yazıldı, simülasyon testlerinden geçiyor |
+| Proje taraması (`init`) | örnek repolar üzerinde testlerle doğrulandı; gerçek repolar eksikleri gösterecek |
+| Resim üretimi | deneysel: her CLI'ın kendi resim aracına bağlı |
 
 Model adları ve CLI bayrakları sık değişiyor. `/agentack verify` senin bilgisayarında neyin
 çalıştığını kanıtlar; orada gördüklerini bildirirsen çok yardımcı olur.

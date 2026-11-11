@@ -7,6 +7,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- `agentack` updated to 2.1.0 (see `skills/agentack/CHANGELOG.md`)
+
 ## 2026-11-11
 
 ### Added

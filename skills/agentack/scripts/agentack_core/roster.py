@@ -9,24 +9,36 @@ from .providers import PROVIDERS, SKILLS, TIERS, WEAK, is_auto
 
 ROLE_TIER = {
     "decider": "S4",
-    "architect": "S3", "reviewer": "S3",
-    "be-go": "S2", "be-node": "S2", "fe-next": "S2", "fe-angular": "S2", "qa": "S2",
+    "architect": "S3", "backend-architect": "S3", "designer": "S3", "reviewer": "S3",
+    "backend": "S2", "frontend": "S2", "qa": "S2",
     "scout": "S1", "contract-guard": "S1",
 }
 ROLES = tuple(ROLE_TIER)
 ROLE_SKILL = {
-    "decider": "decide", "architect": "plan", "reviewer": "review",
-    "be-go": "backend", "be-node": "backend", "fe-next": "frontend", "fe-angular": "frontend",
-    "qa": "test", "scout": "mechanical", "contract-guard": "mechanical",
+    "decider": "decide", "architect": "plan", "backend-architect": "plan", "designer": "visual",
+    "reviewer": "review",
+    "backend": "backend", "frontend": "frontend", "qa": "test", "scout": "mechanical", "contract-guard": "mechanical",
 }
 READ_ROLES = {"reviewer", "decider", "scout"}          # default run mode is read-only
 GATE_ROLES = {"reviewer", "decider", "architect"}      # never downgraded, never on an "auto" model
-DROP_OK = {"be-go", "be-node", "fe-next", "fe-angular", "qa", "scout"}
+DROP_OK = {"backend", "frontend", "qa", "scout"}
+BUILDERS = ("backend", "frontend")
+SPECIALISTS = {"designer"}                             # go to the provider rated best at their skill
 TIER_PURPOSE = {"S4": "decision", "S3": "plan & review", "S2": "build", "S1": "mechanical"}
 
 
 class NoModel(Exception):
     pass
+
+
+def canonical(role: str):
+    """`be-go` -> ("backend", "go"), `fe-angular` -> ("frontend", "angular"), `qa` -> ("qa", None).
+
+    Builders are one role per layer; the project decides which stack they speak."""
+    for prefix, base in (("be-", "backend"), ("fe-", "frontend"), ("fs-", "frontend")):
+        if role.startswith(prefix) and len(role) > len(prefix):
+            return base, role[len(prefix):]
+    return role, None
 
 
 def default_mode(role: str) -> str:
@@ -65,7 +77,7 @@ def _providers(role: str, cfg: dict, skill: Optional[str] = None) -> List[str]:
         return [p for p in custom if p in usable]          # an order the user set by hand
     want = skill or ROLE_SKILL[role]
     index = {p: i for i, p in enumerate(usable)}
-    if skill:
+    if skill or role in SPECIALISTS:
         return sorted(usable, key=lambda p: (-rating(cfg, p, want), index[p]))
     chain = sorted(usable, key=lambda p: (rating(cfg, p, want) <= WEAK, index[p]))
     if role == "reviewer" and len(chain) > 1:
