@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """gitcommit helper: read a working tree, make clean commits under your own name, push them.
 
+  run [--host H]                the whole job in one call: scan, let the provider's small model
+                                write the commit plan, commit, push, print a short report
+  apply --plan FILE             the same with a plan somebody else wrote (the fallback of `run`)
+
   inspect                       what changed, how this repository writes commits, what blocks a commit
   init                          turn the current folder into a git repository (no commit is made)
   commit --subject S -- PATH…   stage exactly these paths and commit them
@@ -8,7 +12,7 @@
   check [--since REV]           verify the commits made since REV (author, message, attribution)
   push [--since REV]            check, then push the current branch to its remote (never forced)
 
-Everything prints JSON. The helper never rewrites history, never forces a push, never skips git
+`run` and `apply` print the report as plain text (`--json` for the details); the rest print JSON. The helper never rewrites history, never forces a push, never skips git
 hooks and never changes git configuration. Python 3.8+, standard library only.
 """
 
@@ -21,11 +25,12 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 SUBJECT_MAX = 72            # hard limit; the skill aims for 50
 BODY_MAX_LINES = 5
@@ -593,6 +598,15 @@ def cmd_init(args) -> dict:
             "gitignore": (start / ".gitignore").is_file(), "next": "run `inspect`"}
 
 
+def _stage(repo: Path, paths: List[str], extra_env: Optional[Dict[str, str]] = None) -> Tuple[int, str]:
+    """`git add -A` for exactly these paths, in pieces so that no command line gets too long."""
+    for i in range(0, len(paths), 200):
+        code, _, err = git(repo, "add", "-A", "--", *paths[i:i + 200], extra_env=extra_env, timeout=300)
+        if code != 0:
+            return code, err
+    return 0, ""
+
+
 def _remaining(repo: Path) -> int:
     return len(_status(repo))
 
@@ -620,7 +634,7 @@ def cmd_commit(args) -> dict:
         if not args.paths:
             raise Stop("usage", "name the paths this commit holds after `--`, or pass --staged")
         git(repo, "reset", "-q")                       # the index holds this commit and nothing else
-        code, _, err = git(repo, "add", "-A", "--", *args.paths)
+        code, err = _stage(repo, args.paths)
         if code != 0:
             raise Stop("bad-path", "git could not stage these paths", output=err.strip()[-500:])
     staged = [p for p in (out(repo, "diff", "--cached", "--name-only", "--no-renames", "-z") or "").split("\0") if p]
@@ -757,6 +771,562 @@ def sign_in_help(repo: Path, remote: str, url: Optional[str], borrowed: Optional
     return {"sign_in": facts, "options": options}
 
 
+# -- the small model ---------------------------------------------------------------------------
+#
+# Writing a commit plan is small work: a few subjects and which paths go together. It does not
+# need the model the user is working with. `run` hands it to the smallest current model of the
+# provider the user is already on, through that provider's own CLI, as one question with one
+# answer: no tools, no permissions, an empty folder. Everything else is this script.
+
+HOSTS = ("claude", "codex", "agy", "kiro")
+BINARIES = {"claude": ("claude",), "codex": ("codex",), "agy": ("agy",), "kiro": ("kiro-cli", "kiro")}
+# Words that mark a provider's small and fast family, best first. The newest version of the
+# first family the account lists is used, so a new release needs no change here.
+SMALL = {"claude": ("haiku",), "codex": ("luna", "nano", "mini"), "agy": ("flash-lite", "flash"),
+         "kiro": ("haiku", "luna", "flash-lite", "flash", "nano", "mini")}
+EFFORTS = ("minimal", "low", "medium", "high", "xhigh", "max")
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07")
+UNKNOWN_FLAG = re.compile(r"unknown (option|argument|flag)|unexpected argument|unrecogni[sz]ed|invalid option|"
+                          r"no such option|flag provided but not defined", re.I)
+SYSTEM = "You write git commit plans. Answer with one JSON object and nothing else."
+NOT_SOURCE = re.compile(
+    r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|poetry\.lock|"
+    r"uv\.lock|Pipfile\.lock|go\.sum|composer\.lock|Gemfile\.lock|flake\.lock)$|\.lock$|\.min\.(js|css)$|\.map$|"
+    r"\.snap$|(^|/)(dist|build|vendor|__snapshots__)/")
+DIFF_CHARS = 60000          # how much diff the model is shown in total
+FILE_CHARS = (1500, 8000)   # per file: at least, at most
+
+
+def detect_host() -> Optional[str]:
+    env = os.environ
+    if env.get("CLAUDECODE") or env.get("CLAUDE_CODE_ENTRYPOINT"):
+        return "claude"
+    if any(k.startswith("CODEX_") and k != "CODEX_HOME" for k in env):
+        return "codex"
+    if any(k.startswith("ANTIGRAVITY_") for k in env):
+        return "agy"
+    if any(k.startswith("KIRO_") and k != "KIRO_HOME" for k in env):
+        return "kiro"
+    return None
+
+
+def find_cli(host: str) -> Optional[str]:
+    return next((path for path in (shutil.which(b) for b in BINARIES[host]) if path), None)
+
+
+def _child(argv: List[str], stdin: Optional[str], cwd: str, timeout: int) -> Tuple[int, str, str]:
+    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")}
+    try:
+        p = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout,
+                           encoding="utf-8", errors="replace", input=stdin,
+                           **({} if stdin is not None else {"stdin": subprocess.DEVNULL}))
+        return p.returncode, p.stdout or "", p.stderr or ""
+    except subprocess.TimeoutExpired:
+        return 124, "", "no answer within %d seconds" % timeout
+    except OSError as e:
+        return 127, "", str(e)
+
+
+def _codex_models(binary: str) -> List[dict]:
+    """Models the Codex app-server lists for this login (one JSON-RPC call over stdio)."""
+    try:
+        proc = subprocess.Popen([binary, "app-server"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, text=True)
+    except OSError:
+        return []
+    found: List[dict] = []
+    try:
+        for i, (method, params) in enumerate((("initialize", {"clientInfo": {"name": "gitcommit", "version": __version__}}),
+                                               ("model/list", {})), 1):
+            proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": i, "method": method, "params": params}) + "\n")
+            proc.stdin.flush()
+        import threading
+
+        def reader():
+            for line in proc.stdout:
+                try:
+                    msg = json.loads(line)
+                except ValueError:
+                    continue
+                if msg.get("id") == 2 and isinstance(msg.get("result"), dict):
+                    for value in msg["result"].values():
+                        for item in value if isinstance(value, list) else []:
+                            mid = isinstance(item, dict) and not item.get("hidden") and (item.get("model") or item.get("id"))
+                            if isinstance(mid, str):
+                                found.append({"id": mid})
+                    return
+
+        t = threading.Thread(target=reader, daemon=True)
+        t.start()
+        t.join(8)
+    except (OSError, ValueError):
+        pass
+    finally:
+        proc.kill()
+    return found
+
+
+def list_models(host: str, binary: str) -> List[dict]:
+    """[{"id", "rate"?, "preview"?}] as the provider's own CLI lists them; [] when it cannot say."""
+    if host == "codex":
+        return _codex_models(binary)
+    if host == "agy":
+        code, stdout, stderr = _child([binary, "models"], None, tempfile.gettempdir(), 20)
+        words = [ln.split()[0] for ln in ANSI.sub("", stdout).splitlines() if ln.split()]
+        return [{"id": w} for w in words if re.match(r"^[a-z][a-z0-9.]*-[a-z0-9.\-]*\d[a-z0-9.\-]*$", w)] if code == 0 else []
+    if host == "kiro":
+        code, stdout, _ = _child([binary, "chat", "--list-models", "-f", "json"], None, tempfile.gettempdir(), 30)
+        try:
+            data = json.loads(stdout[stdout.index("{"):]) if code == 0 else {}
+        except ValueError:
+            return []
+        rows = []
+        for m in data.get("models") or []:
+            mid = isinstance(m, dict) and (m.get("model_id") or m.get("model_name") or m.get("id"))
+            if isinstance(mid, str):
+                rows.append({"id": mid, "rate": m.get("rate_multiplier"),
+                             "preview": bool(re.search(r"experimental|preview", str(m.get("description", "")), re.I))})
+        return rows
+    return []                                          # claude: the `haiku` alias is always the current one
+
+
+def _rank(model_id: str) -> Tuple:
+    """Newest version first, then the lightest effort a slug names (…-low before …-high)."""
+    m = re.search(r"\d+(?:\.\d+)*", model_id)
+    version = tuple(int(x) for x in m.group(0).split(".")) if m else ()
+    effort = next((i for i, e in enumerate(EFFORTS) if model_id.lower().endswith("-" + e)), 0)
+    return (version, -effort)
+
+
+def pick_model(host: str, models: List[dict]) -> Optional[str]:
+    """The small, current model of this provider. None lets the CLI use its own default."""
+    ids = [m for m in models if not m.get("preview")]
+    for word in SMALL[host]:
+        hits = [m["id"] for m in ids if word in m["id"].lower()]
+        if hits:
+            return max(hits, key=_rank)
+    rated = [m for m in ids if isinstance(m.get("rate"), (int, float))]
+    if rated:
+        return min(rated, key=lambda m: m["rate"])["id"]
+    return {"claude": "haiku", "kiro": "auto"}.get(host)
+
+
+def _last_json(text: str) -> Optional[dict]:
+    for line in [text.strip()] + list(reversed(text.strip().splitlines())):
+        line = line.strip()
+        if line.startswith("{"):
+            try:
+                data = json.loads(line)
+                if isinstance(data, dict):
+                    return data
+            except ValueError:
+                continue
+    return None
+
+
+def ask_model(host: str, binary: str, model: Optional[str], prompt: str, timeout: int) -> Tuple[Optional[str], str]:
+    """(answer, error). One question, one answer, in an empty folder: nothing for the model to
+    read, run or change. Flags a CLI does not know yet are dropped and the call is repeated."""
+    with tempfile.TemporaryDirectory(prefix="gitcommit-") as tmp:
+        last = os.path.join(tmp, "answer.txt")
+        m = ["--model", model] if model else []
+        effort = bool(model) and not any(model.lower().endswith("-" + e) for e in EFFORTS)
+        if host == "claude":
+            plain = [binary, "-p"] + m + ["--output-format", "json"]
+            tries = [(plain + ["--no-session-persistence", "--tools", "", "--system-prompt", SYSTEM], prompt),
+                     (plain, prompt)]
+        elif host == "codex":
+            head = [binary, "exec"] + m + ["-c", 'model_reasoning_effort="low"', "--sandbox", "read-only",
+                                           "--skip-git-repo-check"]
+            tail = ["-C", tmp, "-o", last, "-"]
+            tries = [(head + ["--ephemeral"] + tail, prompt), (head + tail, prompt)]
+        elif host == "agy":
+            plain = [binary, "-p", prompt] + m + ["--output-format", "json"]
+            tries = [(plain + (["--effort", "low"] if effort else []), None), (plain, None)]
+        else:
+            plain = [binary, "chat", "--no-interactive"] + m
+            tries = [(plain + ["--trust-tools="], prompt), (plain, prompt)]
+        code, stdout, stderr = 1, "", "not run"
+        for argv, stdin in tries:
+            code, stdout, stderr = _child(argv, stdin, tmp, timeout)
+            if code == 0 or not UNKNOWN_FLAG.search(stderr + stdout):
+                break
+        if host == "codex":
+            try:
+                stdout = Path(last).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                stdout = ""
+        text, failed = ANSI.sub("", stdout).strip(), code != 0
+        if host in ("claude", "agy"):
+            data = _last_json(text)
+            if data is not None:
+                failed = failed or bool(data.get("is_error")) or str(data.get("status", "")).upper() == "ERROR"
+                text = str(data.get("result") or data.get("response") or "").strip()
+        if failed or not text:
+            why = " ".join((ANSI.sub("", stderr).strip() or text or "no answer").split())[-300:]
+            return None, why
+        return text, ""
+
+
+# -- the plan ----------------------------------------------------------------------------------
+
+def units(repo: Path, head: Optional[str], staged: bool, include: List[str]) -> Tuple[List[dict], List[dict], str]:
+    """(units, left out, diff). A unit is one path that can go into a commit; a renamed file is
+    one unit that also carries its old path. Flagged paths are left out here, before anything
+    is shown to a model, so a secret never leaves the machine."""
+    entries, flags = changes(repo, bool(head))
+    keep = {p.rstrip("/") for p in include}
+    flags = [f for f in flags if f["path"].rstrip("/") not in keep
+             and not any(f["path"].startswith(k + "/") for k in keep)]
+    left = [{"path": f["path"], "why": {"secret": "looks like it holds a %s" % f.get("detail", "secret"),
+                                       "sensitive-file": "credentials file", "conflict-marker": "unresolved merge marker",
+                                       "large": "large file (%s)" % f.get("detail", ""),
+                                       "junk": "belongs in .gitignore"}[f["kind"]]} for f in flags]
+    flagged = {f["path"] for f in flags}
+    base = [head] if head else []
+    env: Dict[str, str] = {}
+    tmp = None
+    if not staged:
+        paths: List[str] = []
+        for e in entries:
+            if e["path"] in flagged or e["change"] == "conflict":
+                continue
+            if e["path"].endswith("/"):                # an untracked folder: its files, minus the flagged ones
+                listed = out(repo, "ls-files", "--others", "--exclude-standard", "-z", "--", e["path"]) or ""
+                paths += [f for f in listed.split("\0") if f and f not in flagged and not _is_junk(f)]
+            else:
+                paths += [e["path"]] + ([e["from"]] if e.get("from") else [])
+        # A scratch index holds exactly these paths, so one diff shows everything (new files and
+        # renames too) while the real index stays as the user left it.
+        fd, tmp = tempfile.mkstemp(prefix="gitcommit-index-")
+        os.close(fd)
+        os.unlink(tmp)
+        env = {"GIT_INDEX_FILE": tmp}
+        if head:
+            git(repo, "read-tree", head, extra_env=env)
+        code, err = _stage(repo, paths, env) if paths else (0, "")
+        if code != 0:
+            raise Stop("git-failed", "git could not read the changes", output=err.strip()[-500:])
+    try:
+        code, raw, _ = git(repo, "diff", "--cached", "-M", "--name-status", "-z", *base, extra_env=env)
+        parts, found, i = raw.split("\0"), [], 0
+        while i < len(parts) - 1:
+            status = parts[i]
+            if not status:
+                break
+            if status[0] in "RC":
+                found.append({"path": parts[i + 2], "from": parts[i + 1] if status[0] == "R" else None, "change": status[0]})
+                i += 3
+            else:
+                found.append({"path": parts[i + 1], "from": None, "change": status[0]})
+                i += 2
+        found = [u for u in found if staged or u["path"] not in flagged]
+        code, diff, _ = git(repo, "-c", "core.quotePath=false", "diff", "--cached", "-M", "-U2", "--no-color",
+                            "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", *base,
+                            extra_env=env, timeout=120)
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)
+    return found, left, diff if code == 0 else ""
+
+
+def _split_diff(diff: str) -> Dict[str, str]:
+    """{path: its part of the diff} (the new path for a rename)."""
+    result: Dict[str, str] = {}
+    for chunk in re.split(r"(?m)^(?=diff --git )", diff):
+        if not chunk.startswith("diff --git "):
+            continue
+        m = re.search(r"(?m)^rename to (.+)$", chunk) or re.search(r"(?m)^\+\+\+ b/(.+)$", chunk) \
+            or re.search(r"(?m)^--- a/(.+)$", chunk) or re.search(r"^diff --git a/.+ b/(.+)$", chunk, re.M)
+        if m:
+            result[m.group(1).strip()] = chunk
+    return result
+
+
+def build_prompt(found: List[dict], diff: str, st: dict, history: List[dict], opts, budget: int = DIFF_CHARS) -> str:
+    conv = st.get("convention", "none")
+    if conv == "conventional":
+        fmt = ("Conventional Commits, as this history writes them: `type(scope): description`. Types in use: %s. "
+               "Scopes in use: %s. The description starts with a %s-case letter."
+               % (", ".join(st.get("types") or []) or "feat, fix, docs", ", ".join(st.get("scopes") or []) or "none",
+                  st.get("first_letter", "lower")))
+    elif conv in ("gitmoji", "ticket-prefix"):
+        fmt = "the same shape as the HISTORY subjects (%s)." % conv
+    elif conv == "plain":
+        fmt = "a plain sentence like the HISTORY subjects, starting with a %s-case letter." % st.get("first_letter", "upper")
+    else:
+        fmt = ("Conventional Commits: `type(scope): description` with feat, fix, docs, refactor, perf, test, build, "
+               "ci, chore, style or revert; a scope only for an obvious module name; lower-case description.")
+    lang = ("Write in %s." % opts.lang) if opts.lang else (
+        "Write in the language of the HISTORY subjects (Turkish history, Turkish subjects; English, English), with "
+        "the verb form they use. Keep types like feat/fix and code identifiers as they are."
+        if history else "Write in English.")
+    rules = [
+        "One commit per purpose: a feature with its tests and docs is one commit; a fix, a refactor, a dependency "
+        "change, formatting, CI or tooling each get their own. Most answers are 1 to 5 commits; never one per file.",
+        "Every path under CHANGES goes into exactly one commit, spelled exactly as listed. A file with two purposes "
+        "goes with its main one.",
+        "Order the commits so that each one stands on its own.",
+        "Subject: %s About the effect, in a few words; aim for 50 characters, never more than %d; no period at the "
+        "end; no file lists." % (fmt, SUBJECT_MAX),
+        lang,
+        "`body` is [] for almost every commit. Use at most 3 short lines only for a breaking change "
+        "(`BREAKING CHANGE: ...`), a reason nobody could guess, or a step to take after pulling.",
+        "Never credit a tool, a model or a co-author, and never mention how the change was made.",
+        "Continue the HISTORY: the same vocabulary and scopes; a correction of a recent commit is a new `fix`.",
+    ]
+    if opts.single or opts.staged:
+        rules.append("Exactly one commit for everything.")
+    if st.get("branch_issue_key") and st.get("ticket_share", 0) > 0:
+        rules.append("The issue key of this branch is %s; use it the way HISTORY does." % st["branch_issue_key"])
+    if opts.hint:
+        rules.append("The user says about this work: %s" % " ".join(opts.hint.split())[:400])
+    parts = _split_diff(diff)
+    budget = int(os.environ.get("GITCOMMIT_DIFF_CHARS") or budget)
+    cap = max(FILE_CHARS[0], min(FILE_CHARS[1], budget // max(1, len(found))))
+    shown: Dict[str, str] = {}
+    for u in sorted(found, key=lambda u: len(parts.get(u["path"], ""))):
+        text = parts.get(u["path"], "")
+        if not text:
+            continue
+        if NOT_SOURCE.search(u["path"]) or "\nBinary files " in text or "GIT binary patch" in text:
+            shown[u["path"]] = "[lock, generated or binary file: content not shown]"
+        elif budget <= 0:
+            shown[u["path"]] = "[not shown: %d lines]" % text.count("\n")
+        else:
+            body = "\n".join(ln for ln in text.splitlines() if not ln.startswith(("diff --git", "index ", "--- ", "+++ ")))
+            if len(body) > cap:
+                body = body[:cap].rsplit("\n", 1)[0] + "\n[… %d more lines]" % body[cap:].count("\n")
+            shown[u["path"]] = body
+            budget -= len(body)
+    kinds = {"A": "new", "M": "changed", "D": "deleted", "R": "renamed", "C": "copied", "T": "changed"}
+    lines = ["You write the git commits for the changes below. Answer with JSON only, no prose and no code fence:",
+             '{"commits":[{"subject":"...","body":[],"paths":["..."]}]}', "", "RULES"]
+    lines += ["- " + r for r in rules]
+    lines += ["", "HISTORY (newest first)"]
+    lines += ["%s  [%s]" % (c["subject"], ", ".join(c["files"][:4]) + (" …" if len(c["files"]) > 4 else ""))
+              for c in history[:8]] or ["(no commits yet)"]
+    lines += ["", "CHANGES"]
+    lines += ["%s  (%s%s)" % (u["path"], kinds.get(u["change"], "changed"),
+                             " from %s" % u["from"] if u.get("from") else "") for u in found]
+    lines += ["", "DIFF"]
+    for u in found:
+        lines += ["=== " + u["path"], shown.get(u["path"], "[no content change]")]
+    return "\n".join(lines) + "\n"
+
+
+def parse_plan(text: str) -> Optional[dict]:
+    text = re.sub(r"```[a-zA-Z]*", "", text or "")
+    decoder = json.JSONDecoder()
+    for m in re.finditer(r"\{", text):
+        try:
+            data, _ = decoder.raw_decode(text[m.start():])
+        except ValueError:
+            continue
+        if isinstance(data, dict) and isinstance(data.get("commits"), list):
+            return data
+    return None
+
+
+def resolve_plan(plan: Optional[dict], found: List[dict], who: Optional[dict], one: bool) -> Tuple[List[dict], List[str]]:
+    """(commits ready to make, problems). Each commit gets the exact paths it holds."""
+    if plan is None:
+        return [], ["the answer was not the JSON object that was asked for"]
+    problems: List[str] = []
+    taken: Dict[str, int] = {}
+    commits = []
+    for n, c in enumerate(plan.get("commits") or [], 1):
+        if not isinstance(c, dict):
+            problems.append("commit %d is not an object" % n)
+            continue
+        subject = str(c.get("subject") or "").strip()
+        body_lines = c.get("body") or []
+        body = "\n".join(str(x).rstrip() for x in (body_lines if isinstance(body_lines, list) else [body_lines])).strip()
+        for msg in message_problems(subject, body, who):
+            problems.append("commit %d (%s): %s" % (n, subject[:40], msg))
+        mine: List[dict] = []
+        for raw in c.get("paths") or []:
+            p = str(raw).strip().rstrip("/")
+            if p.startswith("./"):
+                p = p[2:]
+            hit = [u for u in found if p in ("", ".", "*") or u["path"] == p or u["path"].startswith(p + "/")
+                   or u.get("from") == p]
+            if not hit:
+                problems.append("commit %d names a path that is not under CHANGES: %s" % (n, p))
+            for u in hit:
+                if u["path"] in taken and taken[u["path"]] != n:
+                    problems.append("%s is in commit %d and in commit %d" % (u["path"], taken[u["path"]], n))
+                elif u["path"] not in taken:
+                    taken[u["path"]] = n
+                    mine.append(u)
+        if not mine:
+            problems.append("commit %d holds no path" % n)
+        commits.append({"subject": subject, "body": body,
+                        "paths": [x for u in mine for x in ([u["path"]] + ([u["from"]] if u.get("from") else []))]})
+    missing = [u["path"] for u in found if u["path"] not in taken]
+    if missing:
+        problems.append("these paths are in no commit: %s" % ", ".join(missing[:20]))
+    if not commits:
+        problems.append("the plan has no commits")
+    if one and len(commits) != 1:
+        problems.append("exactly one commit was asked for, the plan has %d" % len(commits))
+    return commits, problems
+
+
+def _report(lines: List[str], left: List[dict]) -> str:
+    if left:
+        lines.append("Left out: " + " · ".join("%s (%s)" % (x["path"], x["why"]) for x in left[:12])
+                     + (" · and %d more" % (len(left) - 12) if len(left) > 12 else ""))
+    return "\n".join(lines)
+
+
+def _n(count: int) -> str:
+    return "%d commit%s" % (count, "" if count == 1 else "s")
+
+
+def carry_out(repo: Path, commits: List[dict], left: List[dict], head: str, st: dict, opts) -> dict:
+    """Make the commits, push them, and say what happened in a few lines."""
+    made: List[dict] = []
+    failure = None
+    for c in commits:
+        try:
+            made.append(cmd_commit(argparse.Namespace(
+                repo=str(repo), subject=c["subject"], body=[c["body"]] if c["body"] else [], staged=opts.staged,
+                signoff=bool(st.get("signoff")), include_flagged=bool(opts.include), paths=[] if opts.staged else c["paths"])))
+        except Stop as e:
+            failure = e.payload
+            break
+    log = ["%s %s" % (m["sha"][:7], m["subject"]) for m in made]
+    result = {"ok": failure is None, "commits": made, "left_out": left}
+    if failure:
+        words = " ".join(str(failure.get("output") or failure.get("text") or "").split())[-300:]
+        lines = ["Committed %s, then stopped: %s" % (_n(len(made)), failure["text"])] + log
+        if words and words not in lines[0]:
+            lines.append("git said: " + words)
+        if failure.get("flags"):
+            lines.append("Flagged: " + ", ".join("%s (%s)" % (f["path"], f["kind"]) for f in failure["flags"][:8]))
+        return dict(result, status=failure["error"], code=2, report=_report(lines, left))
+    if opts.no_push:
+        return dict(result, status="committed", code=0, report=_report(["Committed %s (not pushed)" % _n(len(made))] + log, left))
+    return _push_and_report(repo, head, made, log, left, opts, result)
+
+
+def _push_and_report(repo: Path, head: str, made: List[dict], log: List[str], left: List[dict], opts, result: dict) -> dict:
+    did = "Committed %s" % _n(len(made)) if made else "Nothing to commit"
+    try:
+        p = cmd_push(argparse.Namespace(repo=str(repo), since=head, remote=opts.remote, ask=opts.ask, timeout=opts.push_timeout))
+    except Stop as e:
+        p = dict(e.payload, status=e.payload["error"])
+    result = dict(result, push=p)
+    status = p["status"]
+    if status == "pushed":
+        where = p.get("upstream") or "%s/%s" % (p["remote"], p["branch"])
+        extra = p["commits"] - len(made)
+        head_line = "Pushed %s to %s" % (_n(p["commits"]), where) + (" (%d made earlier)" % extra if extra > 0 and made else "")
+        lines = [head_line] + log + ([p["link"]] if p.get("link") else [])
+        return dict(result, status="pushed", code=0, report=_report(lines, left))
+    if status == "up-to-date":
+        return dict(result, status="up-to-date", code=0,
+                    report=_report([did + "; nothing to push" if made else "Nothing to commit, nothing to push"] + log, left))
+    if status == "no-remote":
+        lines = ["%s locally (no remote)" % did] + log + ["To publish: " + p["fix"]]
+        return dict(result, status="no-remote", code=0, report=_report(lines, left))
+    if status == "which-remote":
+        lines = ["%s; not pushed: several remotes (%s) and none is called origin" % (did, ", ".join(p["remotes"]))] + log
+        return dict(result, status=status, code=1, report=_report(lines + ["Say which remote to use."], left))
+    lines = ["%s; push stopped: %s" % (did, p.get("text") or status)] + log
+    for i, o in enumerate(p.get("options") or [], 1):
+        lines.append("%d. %s: %s" % (i, o["what"][0].upper() + o["what"][1:], o["run"]))
+    if status == "check-failed":
+        lines += ["%s: %s" % (c["sha"], "; ".join(c["problems"])) for c in p.get("commits") or []]
+    return dict(result, status=status, code=1, report=_report(lines, left))
+
+
+def cmd_run(args) -> dict:
+    """Scan, plan (with the provider's small model, or a plan that was handed in), commit, push."""
+    start = Path(args.repo or os.getcwd()).resolve()
+    note = []
+    repo = find_repo(start)
+    if repo is None:
+        if out(start, "rev-parse", "--is-bare-repository") == "true":
+            return {"ok": False, "status": "bare-repository", "code": 2,
+                    "report": "Blocked: this is a bare repository, there is nothing to commit here"}
+        made = cmd_init(argparse.Namespace(repo=str(start)))
+        repo = Path(made["repository"])
+        note.append("Initialised a git repository (%s)" % made["branch"])
+    head = out(repo, "rev-parse", "-q", "--verify", "HEAD")
+    branch = out(repo, "symbolic-ref", "-q", "--short", "HEAD")
+    who = identity(repo)
+    blockers = []
+    if not who:
+        blockers.append("git does not know who you are. Set it once: git config --global user.name \"Your Name\" "
+                        "&& git config --global user.email you@example.com")
+    op = in_progress(repo)
+    if op:
+        blockers.append("a %s is in progress. Finish or abort it first" % op)
+    if head and not branch and not op:
+        blockers.append("HEAD is detached. Switch to a branch first: git switch <branch>")
+    if any(e["change"] == "conflict" for e in _status(repo)):
+        blockers.append("there are unresolved merge conflicts. Resolve them first")
+    if blockers:
+        return {"ok": False, "status": "blocked", "code": 2, "report": "\n".join(note + ["Blocked: " + b for b in blockers])}
+    found, left, diff = units(repo, head, args.staged, args.include or [])
+    if args.staged:
+        left = []                                      # the user chose what is staged; nothing was left out
+    since = head or "root"
+    if not found:
+        if args.no_push or args.dry_run or not head:
+            return {"ok": True, "status": "clean", "code": 0, "report": _report(note + ["Nothing to commit"], left)}
+        r = _push_and_report(repo, since, [], [], left, args, {"ok": True, "commits": [], "left_out": left})
+        return dict(r, report="\n".join(note + [r["report"]]))
+    st = style(repo, branch)
+    history = recent(repo) if head else []
+    host = None if args.plan else (args.host or detect_host())
+    # a prompt that travels as a command-line argument has to stay well under the system's limit
+    prompt = build_prompt(found, diff, st, history, args, 30000 if host == "agy" else DIFF_CHARS)
+    one = bool(args.single or args.staged)
+    used = None
+    if args.plan:
+        text = sys.stdin.read() if args.plan == "-" else Path(args.plan).read_text(encoding="utf-8")
+        commits, problems = resolve_plan(parse_plan(text), found, who, one)
+        if problems:
+            return {"ok": False, "status": "bad-plan", "code": 2, "problems": problems,
+                    "report": "The plan was not applied:\n" + "\n".join("- " + x for x in problems)}
+    else:
+        binary = find_cli(host) if host in HOSTS else None
+        why = "no provider was named (--host)" if not host else "the %s CLI is not on PATH" % host if not binary else ""
+        commits, problems = [], [why] if why else []
+        if binary:
+            model = args.model or os.environ.get("GITCOMMIT_MODEL") or pick_model(host, list_models(host, binary))
+            used = "%s:%s" % (host, model or "default")
+            ask = prompt
+            for attempt in (1, 2):
+                answer, err = ask_model(host, binary, model, ask, args.timeout)
+                if answer is None:
+                    problems = ["%s gave no answer: %s" % (used, err)]
+                    break
+                commits, problems = resolve_plan(parse_plan(answer), found, who, one)
+                if not problems:
+                    break
+                ask = prompt + "\nYour previous answer was rejected:\n" + "\n".join("- " + x for x in problems[:12]) \
+                    + "\nAnswer again with the corrected JSON object.\n"
+        if problems:
+            fd, path = tempfile.mkstemp(prefix="gitcommit-plan-", suffix=".md")
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(prompt)
+            return {"ok": False, "status": "need-plan", "code": 3, "model": used, "problems": problems, "brief": path,
+                    "report": "NEED-PLAN: %s\nRead %s (it holds the rules and the changes), write the JSON it asks for "
+                              "to a file, and run the same command with `apply --plan <file>` in place of `run`."
+                              % ("; ".join(problems)[:300], path)}
+    if args.dry_run:
+        lines = note + ["Plan: %s" % _n(len(commits))]
+        for c in commits:
+            lines.append("%s  [%s]" % (c["subject"], ", ".join(c["paths"][:6]) + (" …" if len(c["paths"]) > 6 else "")))
+        return {"ok": True, "status": "plan", "code": 0, "model": used, "plan": commits, "report": _report(lines, left)}
+    r = carry_out(repo, commits, left, since, st, args)
+    return dict(r, model=used, report="\n".join(note + [r["report"]]))
+
+
 def _classify(text: str) -> Tuple[str, str]:
     low = text.lower()
     if re.search(r"fetch first|non-fast-forward|tip of your current branch is behind|updates were rejected because the remote", low):
@@ -862,6 +1432,27 @@ def main(argv=None) -> int:
     s.add_argument("--timeout", type=int, default=180, help="seconds (default 180)")
     s.set_defaults(fn=cmd_push)
 
+    for name in ("run", "apply"):
+        s = sub.add_parser(name)
+        if name == "run":
+            s.add_argument("--host", choices=HOSTS, help="the provider you are running in; its small model writes the plan")
+            s.add_argument("--model", help="use this model instead of the provider's small one")
+            s.add_argument("--timeout", type=int, default=150, help="seconds to wait for the model (default 150)")
+        s.add_argument("--plan", required=name == "apply", default=None,
+                       help="a JSON plan to apply (`-` reads it from stdin)" if name == "apply" else argparse.SUPPRESS)
+        s.add_argument("--no-push", action="store_true", help="commit only")
+        s.add_argument("--single", action="store_true", help="one commit for everything")
+        s.add_argument("--staged", action="store_true", help="only what is staged, as one commit")
+        s.add_argument("--dry-run", action="store_true", help="show the plan, change nothing")
+        s.add_argument("--include", action="append", metavar="PATH", help="commit a flagged path anyway (repeatable)")
+        s.add_argument("--lang", help="language of the messages (default: the history's)")
+        s.add_argument("--hint", help="what the work was, in the user's words")
+        s.add_argument("--ask", action="store_true", help="allow the system's password window on push")
+        s.add_argument("--remote", help="push to this remote")
+        s.add_argument("--push-timeout", type=int, default=180)
+        s.add_argument("--json", action="store_true", help="print the details as JSON instead of the report")
+        s.set_defaults(fn=cmd_run)
+
     args = ap.parse_args(argv)
     try:                                               # commit subjects are not always ASCII
         sys.stdout.reconfigure(encoding="utf-8")
@@ -872,9 +1463,13 @@ def main(argv=None) -> int:
     else:
         try:
             data = args.fn(args)
-            code = 0 if data.get("ok", True) else 1
+            code = data.pop("code", None)
+            code = (0 if data.get("ok", True) else 1) if code is None else code
         except Stop as e:
             data, code = e.payload, 2
+    if args.cmd in ("run", "apply") and not args.json:
+        sys.stdout.write((data.get("report") or data.get("text") or json.dumps(data, ensure_ascii=False)) + "\n")
+        return code
     json.dump(data, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return code

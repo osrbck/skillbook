@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -14,6 +15,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "skills" / "gitcommit" / "scripts" / "gitcommit.py"
+FAKE = Path(__file__).resolve().parent / "fakecli.py"
+sys.path.insert(0, str(SCRIPT.parent))
+import gitcommit as helper  # noqa: E402
 
 NAME, EMAIL = "Ada Lovelace", "ada@example.com"
 # Built at run time so that no scanner (ours or a host's) sees a token in this file.
@@ -54,9 +58,11 @@ class Base(unittest.TestCase):
             self.git("-c", "user.name=" + NAME, "-c", "user.email=" + EMAIL, "commit", "-qm", subject, cwd=path)
         return path
 
-    def run_cli(self, *args, cwd=None, env=None):
+    def run_cli(self, *args, cwd=None, env=None, raw=False):
         p = subprocess.run([sys.executable, str(SCRIPT), *map(str, args)], cwd=str(cwd or self.repo),
                            env={**self.env, **(env or {})}, capture_output=True, text=True, encoding="utf-8")
+        if raw:
+            return p.returncode, p.stdout
         try:
             return p.returncode, json.loads(p.stdout)
         except json.JSONDecodeError:
@@ -501,6 +507,259 @@ class SignInTest(Base):
         code, d = self.run_cli("push", "--since", "root")
         self.assertEqual((d["status"], d["sign_in"]["credential_helpers"]), ("auth", ["cache"]))
         self.assertIn("credential helper (cache) had nothing", d["text"])
+
+
+class RunTest(Base):
+    """`run`: one call scans, lets the provider's small model plan, commits, pushes and reports."""
+
+    def setUp(self):
+        super().setUp()
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        for name in ("claude", "codex", "agy", "kiro-cli"):
+            launcher = bin_dir / name
+            launcher.write_text("#!%s\nimport os, runpy\nos.environ['FAKE_NAME'] = %r\n"
+                                "runpy.run_path(%r, run_name='__main__')\n" % (sys.executable, name, str(FAKE)))
+            launcher.chmod(launcher.stat().st_mode | stat.S_IEXEC)
+        self.env["PATH"] = "%s%s%s" % (bin_dir, os.pathsep, self.env["PATH"])
+        self.env["FAKE_LOG"] = str(self.tmp / "fake.log")
+        self.origin = self.remote()
+        self.git("remote", "add", "origin", str(self.origin))
+        self.git("push", "-q", "-u", "origin", "main")
+
+    def calls(self):
+        path = Path(self.env["FAKE_LOG"])
+        return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
+
+    def answers(self, *plans):
+        path = self.tmp / "answers.txt"
+        path.write_text("\n---\n".join(p if isinstance(p, str) else json.dumps(p) for p in plans), encoding="utf-8")
+        return {"FAKE_ANSWERS": str(path)}
+
+    def test_one_call_scans_plans_commits_and_pushes(self):
+        self.write("src/cart.py", "total = 1\n")
+        self.write("seed0.txt", "seed 0\nmore\n")
+        code, text = self.run_cli("run", "--host", "claude", raw=True)
+        self.assertEqual(code, 0, text)
+        lines = text.strip().splitlines()
+        self.assertEqual(lines[0], "Pushed 1 commit to origin/main")
+        self.assertRegex(lines[1], r"^[0-9a-f]{7} feat: update the project$")
+        self.assertEqual(len(lines), 2, "the report is the whole output")
+        call = self.calls()[0]
+        self.assertEqual((call["cli"], call["model"]), ("claude", "haiku"))
+        self.assertIn("--tools", call["argv"])
+        self.assertNotEqual(Path(call["cwd"]).resolve(), self.repo.resolve(), "the model works in an empty folder")
+        for part in ("RULES", "HISTORY", "chore: start the project", "src/cart.py  (new)", "seed0.txt  (changed)", "+total = 1"):
+            self.assertIn(part, call["prompt"])
+        self.assertEqual(self.log("%an <%ae>|%b")[0], "%s <%s>|" % (NAME, EMAIL))
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertEqual(self.git("log", "--format=%s", "main", cwd=self.origin).splitlines()[0], "feat: update the project")
+
+    def test_the_plan_decides_the_commits(self):
+        self.write("src/cart.py")
+        self.write("src/cart_test.py")
+        self.write("docs/setup.md")
+        plan = {"commits": [{"subject": "feat(cart): add the cart", "body": [], "paths": ["src"]},
+                            {"subject": "docs: explain setup", "body": [], "paths": ["docs/setup.md"]}]}
+        code, text = self.run_cli("run", "--host", "codex", "--no-push", raw=True, env=self.answers(plan))
+        self.assertEqual(code, 0, text)
+        self.assertEqual(text.splitlines()[0], "Committed 2 commits (not pushed)")
+        self.assertEqual(self.log()[:2], ["docs: explain setup", "feat(cart): add the cart"])
+        self.assertEqual(sorted(self.git("show", "--name-only", "--format=", "HEAD~1").splitlines()),
+                         ["src/cart.py", "src/cart_test.py"])
+
+    def test_the_small_current_model_of_each_provider(self):
+        pick = helper.pick_model
+        ids = lambda *names: [{"id": n} for n in names]  # noqa: E731
+        self.assertEqual(pick("claude", []), "haiku")
+        self.assertEqual(pick("codex", ids("gpt-5.6-luna", "gpt-5.6-terra", "gpt-6-luna", "gpt-6-astra")), "gpt-6-luna")
+        self.assertEqual(pick("codex", ids("gpt-6-luna", "gpt-6.1-luna", "gpt-6.1-sol")), "gpt-6.1-luna")
+        self.assertIsNone(pick("codex", []), "no listing: the CLI's own default")
+        self.assertEqual(pick("agy", ids("gemini-4-argon-high", "gemini-3.8-flash-low", "gemini-3.5-flash-lite")),
+                         "gemini-3.5-flash-lite")
+        self.assertEqual(pick("agy", ids("gemini-4-argon-low", "gemini-3.8-flash-high", "gemini-3.8-flash-low",
+                                         "gemini-3.8-flash-medium")), "gemini-3.8-flash-low")
+        kiro = [{"id": "auto", "rate": 1.0}, {"id": "claude-opus-5.5", "rate": 2.0}, {"id": "claude-haiku-4.5", "rate": 0.4},
+                {"id": "claude-haiku-5.5", "rate": 0.06}, {"id": "qwen3-coder-next", "rate": 0.05, "preview": True}]
+        self.assertEqual(pick("kiro", kiro), "claude-haiku-5.5")
+        self.assertEqual(pick("kiro", [{"id": "auto", "rate": 1.0}, {"id": "big-one", "rate": 2.0}]), "auto")
+        self.assertEqual(pick("kiro", []), "auto")
+
+    def test_every_provider_cli_is_driven_the_right_way(self):
+        expect = {"claude": "haiku", "codex": "gpt-6-luna", "agy": "gemini-3.8-flash-low", "kiro": "claude-haiku-5.5"}
+        for host, model in expect.items():
+            self.write("%s.txt" % host)
+            code, text = self.run_cli("run", "--host", host, "--no-push", raw=True)
+            self.assertEqual((code, text.splitlines()[0]), (0, "Committed 1 commit (not pushed)"), host)
+            call = [c for c in self.calls() if "prompt" in c][-1]
+            self.assertEqual((call["cli"].replace("-cli", ""), call["model"]), (host, model))
+        code, text = self.run_cli("run", "--host", "codex", "--model", "my-own-model", "--dry-run", raw=True)
+        self.write("x.txt")
+        code, text = self.run_cli("run", "--host", "codex", "--model", "my-own-model", "--dry-run", raw=True)
+        self.assertEqual(self.calls()[-1]["model"], "my-own-model")
+
+    def test_a_cli_that_does_not_know_the_newer_flags_still_works(self):
+        for host in ("claude", "codex", "agy", "kiro"):
+            self.write("%s.txt" % host)
+            code, text = self.run_cli("run", "--host", host, "--no-push", raw=True, env={"FAKE_OLD": "1"})
+            self.assertEqual(code, 0, "%s: %s" % (host, text))
+
+    def test_an_answer_that_misses_a_path_is_sent_back_once(self):
+        self.write("a.txt")
+        self.write("b.txt")
+        bad = {"commits": [{"subject": "feat: add a", "body": [], "paths": ["a.txt"]}]}
+        good = {"commits": [{"subject": "feat: add a and b", "body": [], "paths": ["a.txt", "b.txt"]}]}
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", raw=True, env=self.answers(bad, good))
+        self.assertEqual((code, self.log()[0]), (0, "feat: add a and b"))
+        prompts = [c["prompt"] for c in self.calls()]
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("these paths are in no commit: b.txt", prompts[1])
+
+    def test_a_message_that_breaks_the_rules_never_becomes_a_commit(self):
+        self.write("a.txt")
+        bad = {"commits": [{"subject": "feat: add a", "body": ["Co-Authored-By: Claude <noreply@anthropic.com>"], "paths": ["a.txt"]}]}
+        before = self.head()
+        code, text = self.run_cli("run", "--host", "claude", raw=True, env=self.answers(bad))
+        self.assertEqual(code, 3, text)
+        self.assertIn("NEED-PLAN", text)
+        self.assertIn("Co-authored-by", text)
+        self.assertEqual(self.head(), before)
+
+    def test_when_the_model_fails_the_caller_writes_the_plan(self):
+        self.write("a.txt")
+        self.write(".env", "DB=1\n")
+        before = self.head()
+        code, text = self.run_cli("run", "--host", "kiro", raw=True, env={"FAKE_KIRO": "fail"})
+        self.assertEqual(code, 3)
+        self.assertTrue(text.startswith("NEED-PLAN: kiro:claude-haiku-5.5 gave no answer"), text)
+        self.assertEqual(self.head(), before)
+        brief = Path(re.search(r"Read (\S+)", text).group(1))
+        self.addCleanup(lambda: brief.exists() and brief.unlink())
+        self.assertIn("a.txt  (new)", brief.read_text(encoding="utf-8"))
+        plan = self.tmp / "plan.json"
+        plan.write_text(json.dumps({"commits": [{"subject": "feat: add a", "body": [], "paths": ["a.txt"]}]}))
+        code, text = self.run_cli("apply", "--plan", plan, raw=True)
+        self.assertEqual(code, 0, text)
+        self.assertEqual(text.strip().splitlines()[0], "Pushed 1 commit to origin/main")
+        self.assertEqual(text.strip().splitlines()[-1], "Left out: .env (credentials file)")
+        code, text = self.run_cli("run", raw=True, env={"PATH": "/usr/bin:/bin"})
+        self.assertIn("Nothing to commit", text)
+
+    def test_no_provider_named_and_none_detected(self):
+        self.write("a.txt")
+        code, text = self.run_cli("run", raw=True)
+        self.assertEqual(code, 3)
+        self.assertIn("no provider was named", text)
+
+    def test_what_is_flagged_never_reaches_the_model(self):
+        self.write("config.py", "TOKEN = '%s'\n" % GH_TOKEN)
+        self.write(".env", "PASSWORD=hunter2hunter2\n")
+        self.write("app/main.py", "print(1)\n")
+        self.write("app/id_rsa", "PRIVATE-STUFF\n")
+        self.write("node_modules/x/index.js", "junk()\n")
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", raw=True)
+        self.assertEqual(code, 0, text)
+        prompt = self.calls()[0]["prompt"]
+        for secret in (GH_TOKEN, "hunter2", "PRIVATE-STUFF", "junk()", "config.py", ".env", "id_rsa", "node_modules"):
+            self.assertNotIn(secret, prompt)
+        self.assertIn("app/main.py  (new)", prompt)
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD"), "app/main.py")
+        left = text.strip().splitlines()[-1]
+        self.assertTrue(left.startswith("Left out: "), text)
+        for part in (".env (credentials file)", "config.py (looks like it holds a GitHub token)", "node_modules/ (belongs in .gitignore)"):
+            self.assertIn(part, left)
+        self.assertNotIn(GH_TOKEN, text)
+
+    def test_include_takes_a_flagged_path_in(self):
+        self.write(".env.test", "MODE=test\n")
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", "--include", ".env.test", raw=True)
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD"), ".env.test")
+        self.assertNotIn("Left out", text)
+
+    def test_a_rename_is_one_unit_and_the_index_is_left_alone(self):
+        (self.repo / "seed0.txt").rename(self.repo / "renamed.txt")
+        self.write("staged-by-hand.txt")
+        self.git("add", "staged-by-hand.txt")
+        code, text = self.run_cli("run", "--host", "claude", "--dry-run", raw=True)
+        self.assertEqual(code, 0, text)
+        self.assertIn("renamed.txt  (renamed from seed0.txt)", self.calls()[0]["prompt"])
+        self.assertEqual(text.splitlines()[0], "Plan: 1 commit")
+        self.assertEqual(self.git("status", "--porcelain").splitlines(),
+                         ["D seed0.txt", "A  staged-by-hand.txt", "?? renamed.txt"], "a dry run changes nothing")
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", raw=True)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertIn("seed0.txt", self.git("show", "--name-status", "--format=", "--no-renames", "HEAD"))
+
+    def test_single_staged_and_hint(self):
+        self.write("a.txt")
+        self.write("b.txt")
+        self.git("add", "a.txt")
+        two = {"commits": [{"subject": "feat: add a", "body": [], "paths": ["a.txt"]},
+                           {"subject": "feat: add b", "body": [], "paths": ["b.txt"]}]}
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", "--single", raw=True, env=self.answers(two, two))
+        self.assertEqual(code, 3, "two commits where one was asked for is not accepted")
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", "--staged", "--hint", "the a file", "--lang",
+                                  "Turkish", raw=True)
+        self.assertEqual(code, 0, text)
+        prompt = self.calls()[-1]["prompt"]
+        self.assertIn("a.txt  (new)", prompt)
+        self.assertNotIn("b.txt", prompt)
+        for part in ("Exactly one commit", "The user says about this work: the a file", "Write in Turkish."):
+            self.assertIn(part, prompt)
+        self.assertEqual(self.git("status", "--porcelain"), "?? b.txt")
+
+    def test_the_history_sets_format_and_language_for_the_model(self):
+        for i, subject in enumerate(("feat(sepet): kupon desteği ekle", "fix(sepet): yuvarlamayı düzelt", "docs: kurulumu açıkla")):
+            self.write("h%d.txt" % i)
+            self.git("add", "-A")
+            self.git("commit", "-qm", subject)
+        self.write("odeme.py")
+        code, text = self.run_cli("run", "--host", "agy", "--no-push", raw=True,
+                                  env={"FAKE_SUBJECT": "feat(ödeme): taksit seçeneği ekle"})
+        self.assertEqual((code, self.log()[0]), (0, "feat(ödeme): taksit seçeneği ekle"))
+        prompt = [c for c in self.calls() if "prompt" in c][-1]["prompt"]
+        for part in ("Scopes in use: sepet", "language of the HISTORY subjects", "docs: kurulumu açıkla  [h2.txt]"):
+            self.assertIn(part, prompt)
+
+    def test_a_folder_without_git_and_blockers(self):
+        folder = self.tmp / "fresh"
+        folder.mkdir()
+        self.write("main.py", "print(1)\n", repo=folder)
+        code, text = self.run_cli("run", "--host", "claude", cwd=folder, raw=True)
+        self.assertEqual(code, 2)
+        self.assertIn("Blocked: git does not know who you are", text)
+        self.git("config", "--global", "user.name", NAME, cwd=folder)
+        self.git("config", "--global", "user.email", EMAIL, cwd=folder)
+        code, text = self.run_cli("run", "--host", "claude", cwd=folder, raw=True)
+        self.assertEqual(code, 0, text)
+        self.assertEqual(text.splitlines()[0], "Committed 1 commit locally (no remote)")
+        self.assertTrue(text.splitlines()[-1].startswith("To publish: git remote add origin"))
+
+    def test_nothing_to_commit_still_pushes_what_is_waiting(self):
+        self.write("a.txt")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "feat: made by hand earlier")
+        code, text = self.run_cli("run", "--host", "claude", raw=True)
+        self.assertEqual((code, text.strip()), (0, "Pushed 1 commit to origin/main"))
+        self.assertEqual(self.calls(), [], "no model is asked when there is nothing to name")
+        code, text = self.run_cli("run", "--host", "claude", raw=True)
+        self.assertEqual(text.strip(), "Nothing to commit, nothing to push")
+
+    def test_a_failing_hook_stops_the_run_and_is_reported(self):
+        hook = self.repo / ".git" / "hooks" / "pre-commit"
+        hook.write_text("#!/bin/sh\necho 'lint: 2 errors' >&2\nexit 1\n")
+        hook.chmod(hook.stat().st_mode | stat.S_IEXEC)
+        self.write("a.txt")
+        code, text = self.run_cli("run", "--host", "claude", raw=True)
+        self.assertEqual(code, 2, text)
+        self.assertIn("Committed 0 commits, then stopped", text)
+        self.assertIn("lint: 2 errors", text)
+
+    def test_json_output_names_the_model(self):
+        self.write("a.txt")
+        code, d = self.run_cli("run", "--host", "kiro", "--no-push", "--json")
+        self.assertEqual((code, d["status"], d["model"], len(d["commits"])), (0, "committed", "kiro:claude-haiku-5.5", 1))
 
 
 if __name__ == "__main__":
