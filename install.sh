@@ -91,6 +91,12 @@ if [ "$everything" -eq 1 ]; then mapfile -t skills < <(available); fi
 if [ "${#skills[@]}" -eq 0 ]; then list_skills; exit 0; fi
 
 for s in "${skills[@]}"; do
+  # A skill is a plain folder name under skills/. Anything with a path separator or a
+  # leading dot ("../template", "a/b", ".") would make the rm -rf / cp -R below act
+  # outside the agent's skills folder, so it is rejected before any file is touched.
+  case "$s" in
+    */*|.*|"") echo "invalid skill name: $s" >&2; exit 2 ;;
+  esac
   if [ ! -f "$SKILLS_SRC/$s/SKILL.md" ]; then
     echo "unknown skill: $s (run ./install.sh to list them)" >&2; exit 2
   fi
