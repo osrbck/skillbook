@@ -36,11 +36,14 @@ retire_preview() {
   # a status line hook installed by the preview points at a script that no longer exists
   if [ -f "$CLAUDE_HOME/settings.json" ] && grep -q 'agentack2.py statusline' "$CLAUDE_HOME/settings.json"; then
     python3 - "$CLAUDE_HOME/settings.json" "$CLAUDE_DIR/agentack/scripts/agentack.py" <<'PY'
-import json, sys
+import json, shlex, sys
 path, script = sys.argv[1], sys.argv[2]
-data = json.load(open(path, encoding="utf-8"))
-data["statusLine"] = {"type": "command", "command": "python3 %s statusline" % script}
-json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+with open(path, encoding="utf-8") as fh:
+    data = json.load(fh)
+# quoted: the command is run by a shell, and the path may contain spaces
+data["statusLine"] = {"type": "command", "command": "python3 %s statusline" % shlex.quote(script)}
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, ensure_ascii=False, indent=2)
 PY
     echo "  updated the status line hook in: $CLAUDE_HOME/settings.json"
   fi
