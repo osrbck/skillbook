@@ -131,15 +131,18 @@ kurallar: [`references/architecture/`](skills/agentack/references/architecture/)
 
 ## Seviyeler
 
-| Seviye | Amaç | Roller | Claude | Codex | Antigravity |
-|---|---|---|---|---|---|
-| **S4** | geri dönüşü pahalı kararlar | decider | Fable | GPT-6 Astra (yüksek efor) | Gemini 4 Karbon, yoksa Argon |
-| **S3** | plan, tasarım ve kontrol | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, yoksa Sol (yüksek efor) | Gemini 4 Argon, yoksa 3.1 Pro |
-| **S2** | inşa | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (orta efor) | Gemini 3.1 Pro |
-| **S1** | mekanik iş | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 3.8 Flash |
+| Seviye | Amaç | Roller | Claude | Codex | Antigravity | Kiro | Cursor |
+|---|---|---|---|---|---|---|---|
+| **S4** | geri dönüşü pahalı kararlar | decider | Fable | GPT-6 Astra (yüksek efor) | Gemini 4 Karbon, yoksa Argon | adını verdiğin model | adını verdiğin model |
+| **S3** | plan, tasarım ve kontrol | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, yoksa Sol (yüksek efor) | Gemini 4 Argon, yoksa 3.1 Pro | adını verdiğin model | adını verdiğin model |
+| **S2** | inşa | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (orta efor) | Gemini 3.1 Pro | Auto | Composer |
+| **S1** | mekanik iş | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 3.8 Flash | Auto | Auto |
+| | **conductor olabilir** | | evet | evet | evet | evet, adı belli Opus sınıfı bir modelde | hayır |
 
-Cursor (Composer, Auto) ve Kiro (Auto) S1 ve S2'yi karşılar; review ve karar rolleri herhangi bir
-sağlayıcıdaki adı belli bir modeli tercih eder. Bunlar varsayılanlardır: kadronda gerçekte ne
+Beş sağlayıcının dördü conductor'a ev sahipliği yapabilir: Claude Code, Codex, Antigravity ve
+Kiro. Cursor yalnızca işçidir. Kiro ve Cursor S1 ile S2'yi olduğu gibi karşılar (Auto, Composer);
+review ve karar rolleri için adını verdiğin bir model gerekir, çünkü Auto hangi modelin yanıt
+verdiğini söylemez. Bunlar varsayılanlardır: kadronda gerçekte ne
 olduğu hesaplarına bağlıdır ve `/agentack roster` ile görülür.
 Ayrıntı: [`providers.md`](skills/agentack/references/providers.md).
 
@@ -153,7 +156,10 @@ olduğunu. Her sağlayıcı iş türü başına 1–5 arası puanlanır ve kadro
 | Claude Code | 5 | 5 | 5 | 4 | 5 | 4 | 5 | 4 |
 | Codex | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 3 |
 | Antigravity | 4 | 4 | 4 | 5 | 2 | 2 | 2 | 2 |
+| Kiro | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 |
+| Cursor | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 |
 
+Kiro ve Cursor her işte 3'tür: Auto yönlendiricilerinin karşılaştırılabilir açık bir ölçümü yok.
 Sırayı senin sağlayıcı önceliğin belirler; iki düzeltme uygulanır: bir iş türünde zayıf puanlı
 (2 ve altı) sağlayıcı o işi ancak son çare olarak yapar, görsel review gibi uzmanlık işleri de en
 yüksek puanlıya gider. Yani Gemini plan yapar, review yapar, arayüzü kontrol eder; ama kodu ancak

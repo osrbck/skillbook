@@ -7,7 +7,8 @@ Thanks for helping. The most useful contributions right now:
    exact wording of a usage-limit error.
 2. **New providers** (see below).
 3. **Sizing rules** backed by real use: a task that got too much or too little crew, and why.
-4. **Conductor hosts:** Kiro and Antigravity.
+4. **Conductor hosts:** a real `/agentack` run in Kiro or Antigravity (both are supported as
+   hosts but covered only by simulated tests): what the host reported as its model, what broke.
 
 ## Adding a provider
 

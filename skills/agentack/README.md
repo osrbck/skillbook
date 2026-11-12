@@ -134,15 +134,18 @@ architecture: [`references/architecture/`](skills/agentack/references/architectu
 
 ## Tiers
 
-| Tier | Purpose | Roles | Claude | Codex | Antigravity |
-|---|---|---|---|---|---|
-| **S4** | hard-to-reverse decisions | decider | Fable | GPT-6 Astra (high) | Gemini 4 Karbon, else Argon |
-| **S3** | plan, design & review | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, else Sol (high) | Gemini 4 Argon, else 3.1 Pro |
-| **S2** | build | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (medium) | Gemini 3.1 Pro |
-| **S1** | mechanical | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 3.8 Flash |
+| Tier | Purpose | Roles | Claude | Codex | Antigravity | Kiro | Cursor |
+|---|---|---|---|---|---|---|---|
+| **S4** | hard-to-reverse decisions | decider | Fable | GPT-6 Astra (high) | Gemini 4 Karbon, else Argon | a model you name | a model you name |
+| **S3** | plan, design & review | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, else Sol (high) | Gemini 4 Argon, else 3.1 Pro | a model you name | a model you name |
+| **S2** | build | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (medium) | Gemini 3.1 Pro | Auto | Composer |
+| **S1** | mechanical | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 3.8 Flash | Auto | Auto |
+| | **can conduct** | | yes | yes | yes | yes, on a named Opus-class model | no |
 
-Cursor (Composer, Auto) and Kiro (Auto) cover S1 and S2; review and decision roles prefer a named
-model on any provider. These are defaults: what your roster really contains depends on your
+Four of the five can host the conductor: Claude Code, Codex, Antigravity and Kiro. Cursor is a
+worker only. Kiro and Cursor cover S1 and S2 out of the box (Auto, Composer); for review and
+decision roles they need a model you name, because Auto does not say which model answers. These
+are defaults: what your roster really contains depends on your
 accounts and is shown by `/agentack roster`. Details: [`providers.md`](skills/agentack/references/providers.md).
 
 ## Strengths
@@ -155,8 +158,10 @@ rated 1–5 per kind of work, and the roster keeps it on what it does well.
 | Claude Code | 5 | 5 | 5 | 4 | 5 | 4 | 5 | 4 |
 | Codex | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 3 |
 | Antigravity | 4 | 4 | 4 | 5 | 2 | 2 | 2 | 2 |
+| Kiro | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 |
+| Cursor | 3 | 3 | 3 | 3 | 3 | 3 | 3 | 3 |
 
-Your provider order decides, with two corrections: a provider rated weak (2 or lower) at a kind
+Kiro and Cursor are 3 throughout: their Auto routers have no comparable public numbers. Your provider order decides, with two corrections: a provider rated weak (2 or lower) at a kind
 of work does it only as a last resort, and a specialty such as visual review goes to the best
 rated. So Gemini plans, reviews and checks UI, but writes code only when nothing else is
 available. Setup shows this scorecard before you choose; `--rate` changes any number. Ratings are
