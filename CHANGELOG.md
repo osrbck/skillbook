@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `deepsearch` 0.1.0: a research team of agents sized by a degree, reviewed on the strongest
+  model before one cited document is written (see `skills/deepsearch/CHANGELOG.md`)
 - `gitcommit` 0.2.0: clean commits under your own name, written by the provider's smallest
   current model and pushed to any git server (see `skills/gitcommit/CHANGELOG.md`)
 - Kiro as a fourth install target: `install.sh --kiro` (`~/.kiro/skills`); `--all` now means

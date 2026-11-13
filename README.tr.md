@@ -13,6 +13,7 @@ ajanın çalıştığı her yerde çalışır: masaüstü uygulaması, IDE ya da
 |---|---|---|
 | [**agentack**](skills/agentack/) | Her dilde ve mimaride full stack işler için conductor: projeyi bir kez okur, her görevi boyutlandırır ve Claude, Codex, Antigravity, Cursor ve Kiro arasında en küçük uzman ajan ekibine yönlendirir; contract ve review kapıları vardır. | `/agentack` |
 | [**gitcommit**](skills/gitcommit/) | Çalışma klasöründeki değişiklikleri tek komutla birkaç temiz commit'e çevirir ve push'lar: amaca göre gruplar, deponun kendi kuralına ve diline uygun kısa mesajlar yazar, yalnızca senin adını kullanır (ortak yazar ya da yapay zekâ satırı yok), gizli anahtarları ve çöpleri dışarıda bırakır. Mesajları sağlayıcının en küçük güncel modeli yazar, bu yüzden çok az token harcar. Her git sunucusuyla çalışır. | `/gitcommit` |
+| [**deepsearch**](skills/deepsearch/) | Bir konuyu ajan ekibiyle araştırır: oturumun soruyu kurar, her araştırmacıya bir persona ve bir açı verir; araştırmacılar elindeki CLI'lar üzerinden webde paralel çalışır, en güçlü modeldeki hakem kaynakları kontrol edip tutmayanı geri gönderir, ayakta kalanlar kaynaklı tek bir belgeye dönüşür. Ekibin büyüklüğünü ve gücünü derece (`low`, `medium`, `hard`) belirler. | `/deepsearch` |
 | [**worklog**](skills/worklog/) | Belirli bir zaman aralığındaki yerel AI kodlama oturumlarını tarar ve yapılan işi proje bazında, süre tahminleri, commit'ler ve issue anahtarlarıyla raporlar. | `/worklog` |
 
 Her skill'in klasöründe kendi README'si, değişiklik günlüğü ve katkı notları var.
