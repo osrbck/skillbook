@@ -240,6 +240,8 @@ kod elle düzenlenmez, kırıcı değişiklik yeni sürüm ve senin onayını is
   Auto değil, adı belli Opus sınıfı bir model). Daha küçük bir modelde Agentack uyarır ve devam
   etmeden önce onay ister.
 - **Sağlayıcılar:** Claude Code, Codex, Antigravity (`agy`), Cursor CLI, Kiro CLI'dan en az biri.
+  CLI'ın kurulu ve giriş yapılmış olması yeterli. İçinde çalışman gerekmez: `/agentack`'i masaüstü
+  uygulamasından ya da IDE'den çağırırsın, işçiler arka planda CLI'lar üzerinden çalışır.
 - Python 3.8+ ve git; macOS, Linux ya da WSL. Projen bir git reposu olmalı.
 
 Güncelleme: `cd ~/skillbook && git pull && ./install.sh agentack --all` · Kaldırma: `./install.sh agentack --uninstall`.
@@ -261,8 +263,7 @@ gerek kalmaz). Sonra bir kez `/agentack setup` çalıştır. 0.1 için yazılmı
 
 | Sağlayıcı | Durum |
 |---|---|
-| Claude Code | gerçek CLI ile test edildi |
-| Codex, Antigravity, Cursor, Kiro | her CLI'ın dokümanına göre yazıldı, simülasyon testlerinden geçiyor |
+| Claude Code, Codex, Antigravity, Kiro, Cursor | gerçek CLI'larla test edildi; ayrıca simülasyon testlerinden geçiyor |
 | Proje taraması (`init`) | örnek repolar üzerinde testlerle doğrulandı; gerçek repolar eksikleri gösterecek |
 | Resim üretimi | deneysel: her CLI'ın kendi resim aracına bağlı |
 

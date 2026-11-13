@@ -239,6 +239,8 @@ code is never edited, and breaking changes need a new version and your approval.
   plan-and-review class model (Opus, GPT-6 Astra, Gemini 4 Argon or above; in Kiro a named
   Opus-class model, not Auto). On a smaller model Agentack warns and asks before continuing.
 - **Providers:** at least one of Claude Code, Codex, Antigravity (`agy`), Cursor CLI, Kiro CLI.
+  A CLI only has to be installed and signed in. You do not have to work in it: call `/agentack`
+  from the desktop app or the IDE, and the workers run through the CLIs in the background.
 - Python 3.8+ and git, on macOS, Linux or WSL. Your project in a git repository.
 
 Update with `cd ~/skillbook && git pull && ./install.sh agentack --all`; remove with `./install.sh agentack --uninstall`.
@@ -258,8 +260,7 @@ needed). Then run `/agentack setup` once. Project guides written for 0.1 keep wo
 
 | Provider | State |
 |---|---|
-| Claude Code | tested against the real CLI |
-| Codex, Antigravity, Cursor, Kiro | written from each CLI's documentation and covered by simulated tests |
+| Claude Code, Codex, Antigravity, Kiro, Cursor | tested against the real CLIs, and covered by simulated tests |
 | Project scan (`init`) | covered by tests on sample repositories; real repositories will surface gaps |
 | Image generation | experimental: depends on each CLI's own image tool |
 
