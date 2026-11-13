@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `new-skill` 0.1.0: builds a skill from a task or from the session, asks how to build it,
+  checks it and installs it (see `skills/new-skill/CHANGELOG.md`)
 - `deepsearch` 0.1.0: a research team of agents sized by a degree, reviewed on the strongest
   model before one cited document is written (see `skills/deepsearch/CHANGELOG.md`)
 - `gitcommit` 0.2.0: clean commits under your own name, written by the provider's smallest
