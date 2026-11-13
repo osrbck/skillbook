@@ -179,7 +179,7 @@ class SetupTest(Base):
         self.assertTrue(ok("kiro", "claude-opus-5.5"))
         self.assertFalse(ok("kiro", "auto"), "Auto hides which model conducts")
         self.assertFalse(ok("kiro", "claude-haiku-5.5"))
-        code, d = self.run_cli("check-conductor", "--host", "kiro", "--model", "auto")
+        code, d = self.run_cli("check-conductor", "--in", "kiro", "--model", "auto")
         self.assertIn("a named Opus-class model, not Auto", d["message"])
 
     def test_antigravity_can_conduct_with_cli_workers(self):
@@ -191,7 +191,7 @@ class SetupTest(Base):
 
     def test_kiro_can_conduct_with_cli_workers(self):
         self.setup_providers("claude,kiro")
-        code, d = self.run_cli("dispatch", "--role", "architect", "--brief", self.brief, "--host", "kiro")
+        code, d = self.run_cli("dispatch", "--role", "architect", "--brief", self.brief, "--in", "kiro")
         self.assertEqual((code, d["via"], d["provider"]), (0, "cli", "claude"), "no native subagents outside Claude Code")
         code, d = self.run_cli("detect")
         self.assertEqual({p["name"] for p in d["providers"] if p["can_conduct"]}, {"claude", "codex", "agy", "kiro"})

@@ -7,7 +7,7 @@
   project [--md]                  the saved project profile, and whether the repository moved on since
   roster [--md]                   who does what (configured, ignoring live limits)
   strengths [--md]                what each provider is rated at, per kind of work
-  check-conductor --host H --model M
+  check-conductor --in H --model M
   new-brief ROLE                  create the next brief, in the style of the model that role runs on
   dispatch --role R --brief FILE  start a worker (prints a run id, or a native-subagent instruction)
   wait ID... [--timeout 540]      block until runs finish
@@ -793,7 +793,7 @@ def main(argv=None) -> int:
     s.set_defaults(fn=cmd_roster)
 
     s = sub.add_parser("check-conductor")
-    s.add_argument("--host", required=True, choices=["claude", "codex", "agy", "kiro"])
+    s.add_argument("--in", "--host", dest="host", required=True, choices=["claude", "codex", "agy", "kiro"])
     s.add_argument("--model", required=True)
     s.set_defaults(fn=cmd_check_conductor)
 
@@ -807,7 +807,7 @@ def main(argv=None) -> int:
             s.add_argument("--brief", required=True, help="path to the task brief (Markdown)")
             s.add_argument("--cwd", help="working directory for the worker (default: current directory)")
             s.add_argument("--mode", choices=["read", "write"], help="default depends on the role")
-            s.add_argument("--host", choices=["claude", "codex", "agy", "kiro"], help="the conductor's own CLI")
+            s.add_argument("--in", "--host", dest="host", choices=["claude", "codex", "agy", "kiro"], help="the conductor's own CLI")
             s.add_argument("--timeout", type=float, help="minutes")
             s.add_argument("--unit", help="which unit of the project (see `project`); needed only when "
                                           "the project has several of that layer")

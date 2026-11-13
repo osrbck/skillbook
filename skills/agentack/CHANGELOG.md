@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 
 ## [Unreleased]
 
+### Changed
+- `check-conductor` and `dispatch` name the conductor's provider with `--in` (`--in kiro`). Kiro's
+  terminal guard takes a command that contains `--host` for one that starts a server and refuses
+  it. `--host` still works
+
 ### Fixed
 - A tier that lost its model once stayed empty for good: `setup` kept the saved entry and `verify`
   only tested tiers that still had a model. A roster carried over from an older version, or an
