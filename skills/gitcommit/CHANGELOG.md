@@ -4,6 +4,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 
 ## [Unreleased]
 
+### Changed
+- The provider is now named with `--in` (`run --in kiro`). Kiro's terminal guard takes a command
+  that contains `--host` for one that starts a server and refuses it, which cost the calling
+  agent several extra turns. `--host` still works
+
 ## [0.2.0] - 2026-11-11
 
 The whole job is now one command, and the model that writes the commit messages is the smallest

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """gitcommit helper: read a working tree, make clean commits under your own name, push them.
 
-  run [--host H]                the whole job in one call: scan, let the provider's small model
+  run [--in H]                  the whole job in one call: scan, let the provider's small model
                                 write the commit plan, commit, push, print a short report
   apply --plan FILE             the same with a plan somebody else wrote (the fallback of `run`)
 
@@ -1294,7 +1294,7 @@ def cmd_run(args) -> dict:
                     "report": "The plan was not applied:\n" + "\n".join("- " + x for x in problems)}
     else:
         binary = find_cli(host) if host in HOSTS else None
-        why = "no provider was named (--host)" if not host else "the %s CLI is not on PATH" % host if not binary else ""
+        why = "no provider was named (--in)" if not host else "the %s CLI is not on PATH" % host if not binary else ""
         commits, problems = [], [why] if why else []
         if binary:
             model = args.model or os.environ.get("GITCOMMIT_MODEL") or pick_model(host, list_models(host, binary))
@@ -1435,7 +1435,7 @@ def main(argv=None) -> int:
     for name in ("run", "apply"):
         s = sub.add_parser(name)
         if name == "run":
-            s.add_argument("--host", choices=HOSTS, help="the provider you are running in; its small model writes the plan")
+            s.add_argument("--in", "--host", dest="host", choices=HOSTS, help="the provider you are running in; its small model writes the plan")
             s.add_argument("--model", help="use this model instead of the provider's small one")
             s.add_argument("--timeout", type=int, default=150, help="seconds to wait for the model (default 150)")
         s.add_argument("--plan", required=name == "apply", default=None,

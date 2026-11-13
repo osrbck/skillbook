@@ -12,10 +12,10 @@ user's own name, pushes them and prints a short report. **You do not read diffs,
 or write messages yourself, and you add no words of your own.**
 
 ```bash
-python3 <this skill's directory>/scripts/gitcommit.py run --host <claude|codex|agy|kiro> [flags]
+python3 <this skill's directory>/scripts/gitcommit.py run --in <claude|codex|agy|kiro> [flags]
 ```
 
-Run it from the project folder. `--host` is the provider you are running in right now:
+Run it from the project folder. `--in` is the provider you are running in right now:
 Claude Code → `claude`, Codex → `codex`, Antigravity → `agy`, Kiro → `kiro`.
 
 ## Flags
@@ -51,7 +51,7 @@ of the code, no advice, no closing sentence.
 
 - **`NEED-PLAN`** (exit code 3): the small model could not be used. Read the file the message
   names (it holds the rules, the history and the changes), write the JSON plan it asks for to a
-  file, and run the same command with `apply --plan <file>` in place of `run --host …`. Then
+  file, and run the same command with `apply --plan <file>` in place of `run --in …`. Then
   print that report.
 - **`push stopped`** with numbered options: the commits are made and safe, only the push is
   missing. Print the options as they are; the first is the recommended one. If the user answers

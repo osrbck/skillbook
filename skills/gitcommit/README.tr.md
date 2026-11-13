@@ -82,8 +82,9 @@ sende olmayan commit'ler varsa durur ve bunu söyler; commit'lerin yerelde kalı
 
 ## Kurulum
 
-Gereksinimler: git, Python 3.8+ ve Claude Code, Codex, Antigravity ya da Kiro'dan biri (CLI'ı
-PATH'te olursa yazma işini küçük model yapar). macOS, Linux ve WSL.
+Gereksinimler: git, Python 3.8+ ve Claude Code, Codex, Antigravity ya da Kiro'dan biri; masaüstü
+uygulamasında, IDE'de ya da CLI'da. Sağlayıcının CLI'ının kurulu olması yeterli: küçük modele arka
+planda onun üzerinden ulaşılır, CLI yoksa planı çağırdığın ajan kendisi yazar. macOS, Linux ve WSL.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
@@ -163,8 +164,8 @@ için `~/.claude/settings.json` dosyasına şunu ekle:
 
 ```bash
 G="python3 ~/.claude/skills/gitcommit/scripts/gitcommit.py"
-$G run --host claude              # işin tamamı; yalnızca planı görmek için --dry-run ekle
-$G run --host codex --json        # ayrıntılarla: kullanılan model, commit'ler, push sonucu
+$G run --in claude                # işin tamamı; yalnızca planı görmek için --dry-run ekle
+$G run --in codex --json          # ayrıntılarla: kullanılan model, commit'ler, push sonucu
 $G inspect                        # değişiklikler, stil, işaretler, engeller (JSON)
 $G commit --subject 'fix: handle empty carts' -- src/cart
 $G push --since <commit>          # denetler, sonra gönderir; asla zorla değil

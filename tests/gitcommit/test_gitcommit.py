@@ -589,7 +589,8 @@ class RunTest(Base):
         expect = {"claude": "haiku", "codex": "gpt-6-luna", "agy": "gemini-3.8-flash-low", "kiro": "claude-haiku-5.5"}
         for host, model in expect.items():
             self.write("%s.txt" % host)
-            code, text = self.run_cli("run", "--host", host, "--no-push", raw=True)
+            # --in is the documented name; --host is the older spelling and must keep working
+            code, text = self.run_cli("run", "--in" if host != "codex" else "--host", host, "--no-push", raw=True)
             self.assertEqual((code, text.splitlines()[0]), (0, "Committed 1 commit (not pushed)"), host)
             call = [c for c in self.calls() if "prompt" in c][-1]
             self.assertEqual((call["cli"].replace("-cli", ""), call["model"]), (host, model))

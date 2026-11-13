@@ -82,8 +82,10 @@ stops and says so; your commits stay local.
 
 ## Install
 
-Requirements: git, Python 3.8+, and one of Claude Code, Codex, Antigravity or Kiro (its CLI on
-your PATH lets the small model do the writing). macOS, Linux and WSL.
+Requirements: git, Python 3.8+, and one of Claude Code, Codex, Antigravity or Kiro, in
+the desktop app, the IDE or the CLI. The provider's CLI only has to be installed: the small model
+is reached through it in the background, and without it the agent you called writes the plan
+itself. macOS, Linux and WSL.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
@@ -163,8 +165,8 @@ this to `~/.claude/settings.json`:
 
 ```bash
 G="python3 ~/.claude/skills/gitcommit/scripts/gitcommit.py"
-$G run --host claude              # the whole job; add --dry-run to see the plan only
-$G run --host codex --json        # with the details: model used, commits, push result
+$G run --in claude                # the whole job; add --dry-run to see the plan only
+$G run --in codex --json          # with the details: model used, commits, push result
 $G inspect                        # changes, style, flags, blockers (JSON)
 $G commit --subject 'fix: handle empty carts' -- src/cart
 $G push --since <commit>          # check, then push; never forced
