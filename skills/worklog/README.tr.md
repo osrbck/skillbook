@@ -51,7 +51,7 @@ Toplam ≈5s 40dk · 6 commit · Claude Code, Codex, Kiro
 |---|---|---|
 | Claude Code | `~/.claude/projects/**/*.jsonl` (alt ajanlar dahil) | ✅ test edildi |
 | Codex (CLI ve IDE) | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` | ✅ test edildi |
-| Antigravity (uygulama, IDE ve CLI) | `~/.gemini/antigravity*/conversations/*.db` | 🧪 deneysel |
+| Antigravity (uygulama, IDE ve CLI) | `~/.gemini/antigravity*/conversations/*.db` | ✅ test edildi |
 | Kiro (IDE ve CLI) | `~/.kiro/sessions/*/sess_*/` (workflow çalıştırmaları dahil) | ✅ test edildi |
 | OpenCode / OpenChamber | `~/.local/share/opencode` (JSON veya SQLite) | 🧪 deneysel |
 
@@ -61,7 +61,7 @@ Kurulu olmayan araçlar atlanır. Konumlar ayarlardan değiştirilebilir; `CLAUD
 ## Kurulum
 
 Gereksinimler: Python 3.8+, git ve içinde çalıştırmak için Claude Code, Codex, Antigravity ya da
-Kiro'dan biri. macOS, Linux ve WSL.
+Kiro'dan biri (masaüstü uygulaması, IDE ya da CLI). macOS, Linux ve WSL.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook

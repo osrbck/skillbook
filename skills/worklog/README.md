@@ -54,7 +54,7 @@ Total ≈5h 40m · 6 commits · Claude Code, Codex, Kiro
 |---|---|---|
 | Claude Code | `~/.claude/projects/**/*.jsonl` (incl. subagents) | ✅ tested |
 | Codex (CLI and IDE) | `~/.codex/sessions/**/rollout-*.jsonl` + `session_index.jsonl` | ✅ tested |
-| Antigravity (app, IDE and CLI) | `~/.gemini/antigravity*/conversations/*.db` | 🧪 experimental |
+| Antigravity (app, IDE and CLI) | `~/.gemini/antigravity*/conversations/*.db` | ✅ tested |
 | Kiro (IDE and CLI) | `~/.kiro/sessions/*/sess_*/` (incl. workflow runs) | ✅ tested |
 | OpenCode / OpenChamber | `~/.local/share/opencode` (JSON storage or SQLite) | 🧪 experimental |
 
@@ -63,8 +63,8 @@ and `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIRO_HOME` and `XDG_DATA_HOME` are honor
 
 ## Install
 
-Requirements: Python 3.8+, git, and one of Claude Code, Codex, Antigravity or Kiro to run it in.
-macOS, Linux and WSL.
+Requirements: Python 3.8+, git, and one of Claude Code, Codex, Antigravity or Kiro to run it in
+(desktop app, IDE or CLI). macOS, Linux and WSL.
 
 ```bash
 git clone https://github.com/osrbck/skillbook.git ~/skillbook
