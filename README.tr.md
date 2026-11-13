@@ -2,7 +2,8 @@
 
 Yapay zekâ kodlama ajanları için açık kaynak skill koleksiyonu. Her skill, açık
 [Agent Skills](https://agentskills.io) formatında bir `SKILL.md` içeren bir klasördür; bu sayede
-aynı skill **Claude Code**, **Codex**, **Antigravity** ve **Kiro**'da çalışır. Buradaki her skill dördü için yazılır.
+aynı skill **Claude Code**, **Codex**, **Antigravity** ve **Kiro**'da çalışır. Buradaki her skill dördü için yazılır ve
+ajanın çalıştığı her yerde çalışır: masaüstü uygulaması, IDE ya da CLI.
 
 > 🇬🇧 English: [README.md](README.md)
 

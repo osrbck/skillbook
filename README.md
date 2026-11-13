@@ -2,7 +2,8 @@
 
 A collection of open-source skills for AI coding agents. Each skill is a folder with a `SKILL.md`
 (the open [Agent Skills](https://agentskills.io) format), so the same skill works in
-**Claude Code**, **Codex**, **Antigravity** and **Kiro**. Every skill here is written for all four.
+**Claude Code**, **Codex**, **Antigravity** and **Kiro**. Every skill here is written for all four and
+runs wherever the agent does: desktop app, IDE or CLI.
 
 > 🇹🇷 Türkçe: [README.tr.md](README.tr.md)
 
