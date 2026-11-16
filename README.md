@@ -1,5 +1,9 @@
 # skillbook
 
+<p align="center">
+  <img src="docs/skillbook.png" alt="skillbook: open-source skills for AI coding agents (agentack, gitcommit, deepsearch, worklog) for Claude Code, Codex, Antigravity and Kiro" width="100%">
+</p>
+
 A collection of open-source skills for AI coding agents. Each skill is a folder with a `SKILL.md`
 (the open [Agent Skills](https://agentskills.io) format), so the same skill works in
 **Claude Code**, **Codex**, **Antigravity** and **Kiro**. Every skill here is written for all four and

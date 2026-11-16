@@ -1,5 +1,9 @@
 # skillbook
 
+<p align="center">
+  <img src="docs/skillbook.png" alt="skillbook: yapay zekâ kodlama ajanları için açık kaynak skill'ler (agentack, gitcommit, deepsearch, worklog); Claude Code, Codex, Antigravity ve Kiro için" width="100%">
+</p>
+
 Yapay zekâ kodlama ajanları için açık kaynak skill koleksiyonu. Her skill, açık
 [Agent Skills](https://agentskills.io) formatında bir `SKILL.md` içeren bir klasördür; bu sayede
 aynı skill **Claude Code**, **Codex**, **Antigravity** ve **Kiro**'da çalışır. Buradaki her skill dördü için yazılır ve
