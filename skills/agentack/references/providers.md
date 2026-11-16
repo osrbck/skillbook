@@ -19,7 +19,7 @@ selected provider.
 |---|---|---|---|---|---|
 | `claude` Claude Code | fable | opus | sonnet | haiku | yes |
 | `codex` Codex | gpt-6-astra (high) | gpt-6-astra (medium), else gpt-6.1-sol (high) | gpt-6.1-sol (medium) | gpt-6-luna (low) | yes |
-| `agy` Antigravity | Gemini 4 Karbon, else Argon | Gemini 4 Argon, else 3.1 Pro | Gemini 3.1 Pro | Gemini 3.8 Flash | yes (app, IDE, CLI) |
+| `agy` Antigravity | Gemini 4 Karbon, else Argon | Gemini 4 Argon, else 3.1 Pro | Gemini 4 Argon (medium), else 3.1 Pro | Gemini 4 Hydrogen, else 3.8 Flash | yes (app, IDE, CLI) |
 | `cursor` Cursor | — name one | — name one | Composer | Auto | no |
 | `kiro` Kiro | — name one | — name one | Auto | Auto | yes (IDE and CLI), on a named Opus-class model |
 
@@ -28,9 +28,11 @@ selected provider.
   account without Astra (a ChatGPT login, for example) Sol at high effort stands in at S3 and is
   briefed step by step.
 - Antigravity is placed where Gemini is strong: Argon plans, reviews and reads anything visual,
-  and Karbon decides where an account has it (otherwise Argon does). Its build and mechanical
-  tiers sit one model higher than its menu suggests (3.1 Pro and 3.8 Flash), Flash-Lite class
-  models are never used, and both tiers are rated a last resort: see `strengths.md`. Slugs are
+  and Karbon decides where an account has it (otherwise Argon does). Build runs on Argon at
+  medium effort, since 3.1 Pro left individual plans in October 2026 (accounts that lack Argon
+  still get 3.1 Pro). Mechanical work runs on Gemini 4 Hydrogen where it is listed, else 3.8
+  Flash. Flash-Lite class models are never used, and both tiers are rated a last resort: see
+  `strengths.md`. Slugs are
   read from `agy models` during setup and matched by name.
 - Tiers are only half of the routing. Each provider is also rated per kind of work, and a
   provider that is weak at a kind of work is used for it only when nothing better is available.
@@ -45,9 +47,9 @@ Models differ in how much they want spelled out. Each tier of each provider has 
 | Style | The brief contains | Used for |
 |---|---|---|
 | `goal` | goal, context, constraints, what done looks like | S3 on Claude (Opus), Antigravity (Argon, 3.1 Pro) |
-| `structured` | named files, steps, output shape, boundaries | S2 on Claude (Sonnet), Antigravity (3.1 Pro), Cursor Composer |
+| `structured` | named files, steps, output shape, boundaries | S2 on Claude (Sonnet), Antigravity (Argon), Cursor Composer |
 | `explicit` | every step in order, nothing implicit | GPT-6.1 Sol on Codex (S2, and S3 where it stands in for Astra), any Auto router |
-| `rules` | exact rule set with input/output examples, small batches, spot checks | S1 everywhere (Haiku, GPT-6 Luna, Gemini 3.8 Flash) |
+| `rules` | exact rule set with input/output examples, small batches, spot checks | S1 everywhere (Haiku, GPT-6 Luna, Gemini 4 Hydrogen, Gemini 3.8 Flash) |
 | `peer` | the open question plus the evidence | S4 everywhere (Fable, GPT-6 Astra, Gemini 4 Karbon) |
 
 - The Claude and OpenAI rows follow what those models are known to respond to best. The Gemini,

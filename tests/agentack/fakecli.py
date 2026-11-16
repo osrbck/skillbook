@@ -34,7 +34,7 @@ if name == "kiro-cli" and "/usage" in args:
     sys.exit(0)
 
 if name == "agy" and args[:1] == ["models"]:
-    listing = os.environ.get("FAKE_AGY_MODELS") or ("gemini-4-argon-high,gemini-4-argon-low,gemini-3.1-pro-high,"
+    listing = os.environ.get("FAKE_AGY_MODELS") or ("gemini-4-argon-high,gemini-4-argon-medium,gemini-4-argon-low,gemini-3.1-pro-high,"
                                                     "gemini-3.8-flash-medium,gemini-3.8-flash-high,gemini-3.5-flash-lite")
     print(listing.replace(",", "\n"))
     sys.exit(0)

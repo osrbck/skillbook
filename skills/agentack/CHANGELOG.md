@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 ## [Unreleased]
 
 ### Changed
+- Antigravity's build tier (S2) runs on Gemini 4 Argon at medium effort. Gemini 3.1 Pro left the
+  model list on individual plans in October 2026; accounts that lack Argon still use 3.1 Pro, and
+  a Pro or Flash stand-in gets its high-effort variant
+- Antigravity's mechanical tier (S1) uses Gemini 4 Hydrogen where `agy models` lists it, else
+  3.8 Flash
 - `check-conductor` and `dispatch` name the conductor's provider with `--in` (`--in kiro`). Kiro's
   terminal guard takes a command that contains `--host` for one that starts a server and refuses
   it. `--host` still works

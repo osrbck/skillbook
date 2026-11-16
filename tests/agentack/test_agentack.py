@@ -133,9 +133,21 @@ class SetupTest(Base):
         d = self.setup_providers("agy")
         self.assertEqual(self.primary(d, "decider"), "agy:gemini-4-argon-high")
         self.assertEqual(self.primary(d, "reviewer"), "agy:gemini-4-argon-high", "Argon is the code model")
-        self.assertEqual(self.primary(d, "qa"), "agy:gemini-3.1-pro-high", "build runs on Pro, not Flash")
+        self.assertEqual(self.primary(d, "qa"), "agy:gemini-4-argon-medium", "build runs on Argon, not Flash")
         self.assertEqual(self.primary(d, "scout"), "agy:gemini-3.8-flash-medium", "mechanical runs on Flash")
         self.assertFalse(any("lite" in (r["primary"] or "") for r in d["roster"]), "Flash-Lite is never used")
+
+    def test_agy_mechanical_prefers_hydrogen_where_listed(self):
+        env = {"FAKE_AGY_MODELS": "gemini-4-argon-high,gemini-4-argon-medium,gemini-4-hydrogen-high,"
+                                  "gemini-4-hydrogen-medium,gemini-4-hydrogen-low,gemini-3.8-flash-medium"}
+        code, d = self.run_cli("setup", "--providers", "agy", env=env)
+        self.assertEqual(self.primary(d, "scout"), "agy:gemini-4-hydrogen-medium")
+        self.assertEqual(self.primary(d, "qa"), "agy:gemini-4-argon-medium", "Hydrogen does not take build work")
+
+    def test_agy_build_without_argon_runs_on_pro_at_high_effort(self):
+        env = {"FAKE_AGY_MODELS": "gemini-3.1-pro-high,gemini-3.1-pro-low,gemini-3.8-flash-medium"}
+        code, d = self.run_cli("setup", "--providers", "agy", env=env)
+        self.assertEqual(self.primary(d, "qa"), "agy:gemini-3.1-pro-high")
 
     KARBON = "gemini-4-karbon-high,gemini-4-argon-high,gemini-3.1-pro-high,gemini-3.8-flash-medium,gemini-3.5-flash-lite"
 
@@ -275,7 +287,7 @@ class GuidanceTest(Base):
 
 class DispatchTest(Base):
     def test_each_provider_runs_and_returns_text(self):
-        for prov, cli, model in (("codex", "codex", "gpt-6.1-sol"), ("agy", "agy", "gemini-3.1-pro-high"),
+        for prov, cli, model in (("codex", "codex", "gpt-6.1-sol"), ("agy", "agy", "gemini-4-argon-medium"),
                                  ("cursor", "cursor-agent", "cursor-composer-2-5"), ("kiro", "kiro-cli", "auto"),
                                  ("claude", "claude", "sonnet")):
             self.setup_providers(prov, "--reset")

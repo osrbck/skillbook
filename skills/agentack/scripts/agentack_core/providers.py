@@ -505,15 +505,18 @@ class Antigravity(Provider):
     image = True                   # Gemini image models through the agent
     conductor_keywords = ("karbon", "carbon", "argon", "3.1-pro", "gemini-pro")
     # Gemini is used where it is strong: analysis, review, long context and anything visual run on
-    # Argon (Karbon where the plan has it). It trails on headless coding loops, so its build and
-    # mechanical tiers are one model up from the menu's suggestion and rated as a last resort.
+    # Argon (Karbon where the plan has it). It trails on headless coding loops, so build runs on
+    # Argon at medium effort (3.1 Pro left individual plans in October 2026), mechanical work on
+    # Gemini 4 Hydrogen where listed, else 3.8 Flash, and both tiers are rated as a last resort.
     # Flash-Lite class models are never used.
     tiers = {"S4": {"model": "gemini-4-argon", "effort": "high"},
              "S3": {"model": "gemini-4-argon", "effort": "high"},
-             "S2": {"model": "gemini-3.1-pro", "effort": "high"},
+             "S2": {"model": "gemini-4-argon", "effort": "medium"},
              "S1": {"model": "gemini-3.8-flash", "effort": "medium"}}
     match = {"S4": (("karbon",), ("carbon",), ("argon",)), "S3": (("argon",), ("3.1-pro",)),
-             "S2": (("3.1-pro",), ("argon",), ("3.8-flash",)), "S1": (("3.8-flash",), ("flash",))}
+             # build runs on Argon at medium; a stand-in for it gets the high-effort variant
+             "S2": (("argon",), ("3.1-pro", "high"), ("3.1-pro",), ("3.8-flash", "high"), ("3.8-flash",)),
+             "S1": (("hydrogen",), ("3.8-flash",), ("flash",))}
     never = ("lite",)
     ratings = {"decide": 4, "plan": 4, "review": 4, "visual": 5, "backend": 2, "frontend": 2,
                "test": 2, "mechanical": 2}

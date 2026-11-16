@@ -138,8 +138,8 @@ architecture: [`references/architecture/`](skills/agentack/references/architectu
 |---|---|---|---|---|---|---|---|
 | **S4** | hard-to-reverse decisions | decider | Fable | GPT-6 Astra (high) | Gemini 4 Karbon, else Argon | a model you name | a model you name |
 | **S3** | plan, design & review | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, else Sol (high) | Gemini 4 Argon, else 3.1 Pro | a model you name | a model you name |
-| **S2** | build | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (medium) | Gemini 3.1 Pro | Auto | Composer |
-| **S1** | mechanical | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 3.8 Flash | Auto | Auto |
+| **S2** | build | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (medium) | Gemini 4 Argon (medium) | Auto | Composer |
+| **S1** | mechanical | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 4 Hydrogen, else 3.8 Flash | Auto | Auto |
 | | **can conduct** | | yes | yes | yes | yes, on a named Opus-class model | no |
 
 Four of the five can host the conductor: Claude Code, Codex, Antigravity and Kiro. Cursor is a

@@ -66,14 +66,17 @@ Each one below names what it rests on. "Inferred" means there is no direct bench
 - mechanical 3: Luna is cheap and scores well on DeepSWE (66.6%) but low on Terminal-Bench 4.0
   (16.4%): fine for rule-following batches, not for open-ended loops.
 
-**Antigravity** (Gemini 4 Karbon · Argon · 3.1 Pro · 3.8 Flash)
+**Antigravity** (Gemini 4 Karbon · Argon · Hydrogen · 3.8 Flash)
 - visual 5: native image, video and PDF input; Argon places near the top of SWE-bench Multimodal.
 - decide 4, plan 4, review 4: Argon leads several reasoning and analysis boards (Vals index,
   DeepSWE 77.9%) and handles very long inputs well. Review is inferred from that.
 - backend 2, frontend 2, test 2: Argon trails on terminal agent loops (Terminal-Bench 4.0 57%
   against 66–71% for Claude), reviewers find the Antigravity harness behind Claude Code and
-  Codex, and the build tier runs on 3.1 Pro (SWE-bench Pro 46%).
-- mechanical 2: 3.8 Flash scores 19% on Terminal-Bench 4.0.
+  Codex. The build tier runs on Argon at medium effort. 3.1 Pro (SWE-bench Pro 46%) is used
+  only where an account lacks Argon. The ratings were not raised for this change.
+- mechanical 2: 3.8 Flash scores 19% on Terminal-Bench 4.0. Gemini 4 Hydrogen, used where
+  listed, has no independent benchmark yet. It answered a small read-and-compute check correctly
+  and faster than 3.8 Flash on 2026-11-16, so the rating stays at 2 until one appears.
 - Flash-Lite class models are never used.
 - Karbon (also written Carbon) is limited to selected partners at the time of review. Where an
   account has it, it takes the S4 seat.
