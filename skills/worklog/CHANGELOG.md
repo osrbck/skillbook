@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 
 ## [Unreleased]
 
+### Fixed
+- Files a session recorded through a symlink (on macOS every path under `/var`, or a linked
+  project folder) are listed relative to the project again instead of by their full path
+
 ## [0.2.0] - 2026-11-11
 
 ### Added

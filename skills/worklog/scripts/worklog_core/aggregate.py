@@ -79,8 +79,12 @@ def _rel(path: str, root: Optional[str], cwd: Optional[str]) -> str:
     p = path
     if not os.path.isabs(p) and cwd:
         p = os.path.normpath(os.path.join(cwd, p))
-    if root and (p == root or p.startswith(root.rstrip(os.sep) + os.sep)):
-        return os.path.relpath(p, root)
+    if root:
+        # The root is a resolved path; a session may have recorded the same file through a
+        # symlink (macOS: /var -> /private/var, or a linked project folder).
+        for cand in (p, os.path.realpath(p)):
+            if cand == root or cand.startswith(root.rstrip(os.sep) + os.sep):
+                return os.path.relpath(cand, root)
     home = os.path.expanduser("~")
     return "~" + p[len(home):] if p.startswith(home + os.sep) else p
 

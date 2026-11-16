@@ -330,6 +330,18 @@ class WorklogTest(unittest.TestCase):
 
 
 class UnitTest(unittest.TestCase):
+    def test_file_recorded_through_a_symlink_is_still_relative(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        real = Path(tmp.name) / "real-proj"
+        (real / "src").mkdir(parents=True)
+        link = Path(tmp.name) / "linked-proj"
+        os.symlink(str(real), str(link))
+        root = os.path.realpath(str(real))
+        self.assertEqual(aggregate._rel(str(link / "src" / "a.py"), root, None),
+                         os.path.join("src", "a.py"))
+        self.assertEqual(aggregate._rel("src/a.py", root, str(link)), os.path.join("src", "a.py"))
+
     def test_redact(self):
         self.assertNotIn("ghp_", redact("use ghp_abcdefghijklmnopqrstuvwxyz0123"))
         self.assertEqual(redact("DB_PASSWORD=hunter22"), "DB_PASSWORD=[REDACTED]")
