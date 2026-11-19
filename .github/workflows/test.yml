@@ -14,10 +14,25 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 scripts/validate.py
+
+  installer:
+    # /bin/bash on macOS is still 3.2, so the installer and every install hook must run on it.
+    name: installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
       - name: installer smoke test
         run: |
+          /bin/bash --version | head -n1
           export HOME="$(mktemp -d)"
-          ./install.sh --everything --all
+          /bin/bash ./install.sh --everything --all
           for s in skills/*/; do
             s="$(basename "$s")"
             for t in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/config/skills" "$HOME/.kiro/skills"; do
@@ -25,7 +40,7 @@ jobs:
               test ! -e "$t/$s/README.md"
             done
           done
-          ./install.sh --everything --uninstall
+          /bin/bash ./install.sh --everything --uninstall
 
   tests:
     name: tests (${{ matrix.os }}, ${{ matrix.python }})
