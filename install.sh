@@ -82,12 +82,21 @@ for arg in "$@"; do
     --everything) everything=1 ;;
     --list|-l)    list_skills; exit 0 ;;
     -h|--help)    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    -*)           echo "unknown option: $arg" >&2; exit 2 ;;
+    -*)           echo "unknown option: $arg" >&2
+                  # "--worklog" instead of "worklog": point at the skill name without dashes
+                  if [ -f "$SKILLS_SRC/${arg#--}/SKILL.md" ]; then
+                    echo "skill names take no dashes: ./install.sh ${arg#--} [--all]" >&2
+                  fi
+                  exit 2 ;;
     *)            skills+=("$arg") ;;
   esac
 done
 
-if [ "$everything" -eq 1 ]; then mapfile -t skills < <(available); fi
+# while-read instead of mapfile: macOS still ships bash 3.2, which has no mapfile
+if [ "$everything" -eq 1 ]; then
+  skills=()
+  while IFS= read -r s; do skills+=("$s"); done < <(available)
+fi
 if [ "${#skills[@]}" -eq 0 ]; then list_skills; exit 0; fi
 
 for s in "${skills[@]}"; do

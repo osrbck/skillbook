@@ -20,6 +20,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - CI: Python 3.8 runs on an image that still carries it, actions are on current versions, and
   the macOS job passes again (a `worklog` path bug, see `skills/worklog/CHANGELOG.md`)
 - `agentack` updated to 2.1.0 (see `skills/agentack/CHANGELOG.md`)
+- CI: the installer smoke test also runs on macOS, under the system `/bin/bash` 3.2
+
+### Fixed
+- `install.sh --everything` failed on macOS with `mapfile: command not found`: the system bash
+  there is 3.2, which has no `mapfile`. The installer now runs on bash 3.2 and later
+- A skill written as an option (`--worklog`) now gets a hint to drop the dashes instead of
+  only `unknown option`
 
 ## 2026-11-11
 

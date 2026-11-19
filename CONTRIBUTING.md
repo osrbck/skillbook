@@ -26,7 +26,7 @@ Each skill has its own contributing notes, for example
 5. Add tests in `tests/<your-skill>/` if the skill has scripts.
 6. If the skill needs a step after installing (a check, a migration), add `install.hook.sh` with a
    `post_install` and/or `post_uninstall` function. It is sourced by `install.sh` and not copied
-   into the agent's skills folder.
+   into the agent's skills folder. Like the installer, it must run on bash 3.2 (see Guidelines).
 7. Add a row to the skills table in both root READMEs.
 8. Run the checks:
 
@@ -42,6 +42,10 @@ Each skill has its own contributing notes, for example
   agent that reads `SKILL.md`, test or reason through all four, and note provider-specific parts
   clearly. A frontmatter field one of them does not know (for example `disable-model-invocation`)
   must not be the only thing a rule rests on: say it in the description too.
+- **bash 3.2 for shell code.** macOS still ships bash 3.2 as `/bin/bash`, so `install.sh` and
+  `install.hook.sh` files must not use bash 4+ features such as `mapfile`/`readarray`,
+  associative arrays (`declare -A`), `${var,,}`/`${var^^}` or `&>>`. CI runs the installer on
+  macOS to catch this.
 - **Standard library only** for helper scripts, and no network calls unless that is the skill's
   purpose and the README says so.
 - **Safe by default.** A skill must not delete, push or send anything without the user asking.

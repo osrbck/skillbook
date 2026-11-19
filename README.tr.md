@@ -45,8 +45,8 @@ cd ~/skillbook
 Güncelleme: `git pull && ./install.sh <skill>...` · Kaldırma: `./install.sh <skill>... --uninstall`.
 Sadece skill'in kendisi kopyalanır; README, changelog ve kurulum hook'ları repoda kalır.
 
-**Gereksinimler:** Python 3.8+ ve bash; macOS, Linux ya da WSL. Skill'lerin yardımcı betikleri
-sadece Python standart kütüphanesini kullanır.
+**Gereksinimler:** Python 3.8+ ve bash 3.2+ (macOS'la gelen sürüm yeterli); macOS, Linux ya da
+WSL. Skill'lerin yardımcı betikleri sadece Python standart kütüphanesini kullanır.
 
 ## Repo yapısı
 

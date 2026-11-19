@@ -45,8 +45,8 @@ cd ~/skillbook
 Update with `git pull && ./install.sh <skill>...`, remove with `./install.sh <skill>... --uninstall`.
 Only the skill itself is copied; READMEs, changelogs and install hooks stay in the repo.
 
-**Requirements:** Python 3.8+ and bash, on macOS, Linux or WSL. The skills' helper scripts use
-only the Python standard library.
+**Requirements:** Python 3.8+ and bash 3.2+ (the one macOS ships is enough), on macOS, Linux or
+WSL. The skills' helper scripts use only the Python standard library.
 
 ## Repository layout
 
