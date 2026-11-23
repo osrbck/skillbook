@@ -26,9 +26,18 @@ Dışarıda bırakılanlar: .env (kimlik bilgisi dosyası) · debug.log (.gitign
 - **Bütün çalışma klasörü, kim değiştirmiş olursa olsun.** Son commit'ten farklı olan her şey
   kapsamdadır: bu oturumdaki, önceki bir oturumdaki, başka bir ajanın yaptığı ya da elle yazılmış
   değişiklikler.
-- **Her commit tek bir amaç.** Bir özellik, testleri ve belgeleriyle birlikte girer; düzeltme,
-  refactor, bağımlılık güncellemesi ve biçimlendirme ayrı commit olur. Birkaç oturumda birikmiş
-  iş, olması gereken commit'lere bölünür.
+- **Her commit bir iş, bir klasör değil.** Tek commit'ten başlar ve yalnızca işin bir parçasının
+  kendi amacı varsa böler: ilgisiz bir düzeltme, ayrı bir özellik, bağımlılık güncellemesi. Bir
+  özellik testleri ve belgeleriyle birlikte girer. Aynı değişiklik birkaç modülde yapıldıysa
+  modülleri adlandıran tek commit olur, `chore(eposta, imap, destek): …`; liste sığmıyorsa
+  kapsam yazılmaz. Beklentiyi değişikliğin boyutu belirler: küçük iş tek commit'tir, altıdan
+  fazla commit'li plan bir kez geri gönderilir.
+- **Modül modül bölünmüş iş yeniden birleştirilir.** Model yine de
+  `chore(eposta): Go komutları sarmalayıcıya geçirildi`, `chore(imap): Go komutları sarmalayıcıya
+  geçirildi` ve `chore(destek): Go testi sarmalayıcıya geçirildi` diye yanıt verirse, yardımcı
+  betik bunları commit atılmadan önce tek commit'te toplar. Ek bir model çağrısı gerekmez. Aynı
+  sözler her zaman birleşir; neredeyse aynı sözler yalnızca farklı modüllerdeyse birleşir, yani
+  aynı modüldeki iki ayrı özellik ayrı kalır.
 - **Senin kuralın ve senin dilin.** Yakın geçmişi okur ve onu sürdürür: kendi tür ve
   kapsamlarınla Conventional Commits, gitmoji, iş numarası öneki ya da düz cümle. Geçmiş
   Türkçeyse mesajlar Türkçe, İngilizceyse İngilizce olur. Yeni depoda İngilizce Conventional

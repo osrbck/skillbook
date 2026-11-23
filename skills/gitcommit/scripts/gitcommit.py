@@ -39,8 +39,13 @@ LARGE_BYTES = 5 * 1024 * 1024
 MAX_CHANGES = 400           # entries listed by `inspect`
 MAX_FLAGS = 60
 HISTORY = 50                # commits read to learn the repository's style
+MAX_COMMITS = 6             # a plan with more is sent back once: it is almost always one job cut up
+SMALL_WORK = (15, 400)      # files, changed lines: up to here the work is expected to be one commit
+MEDIUM_WORK = (60, 2000)
+SAME_WORK = 0.6             # share of words two descriptions have in common to count as the same work
+MAX_SCOPES = 4
 
-CONVENTIONAL = re.compile(r"^(?P<type>[a-z]+)(\((?P<scope>[^()\s]+)\))?(?P<bang>!)?: (?P<desc>\S.*)$")
+CONVENTIONAL = re.compile(r"^(?P<type>[a-z]+)(\((?P<scope>[^()\s][^()]*)\))?(?P<bang>!)?: (?P<desc>\S.*)$")
 CONVENTIONAL_TYPES = {"feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"}
 GITMOJI = re.compile(r"^(:[a-z0-9_+-]+:|[☀-➿\U0001f000-\U0001faff])")
 TICKET = re.compile(r"^\[?(?P<key>[A-Z][A-Z0-9]{1,9}-\d+|#\d+)\]?[:\s]")
@@ -1061,14 +1066,37 @@ def build_prompt(found: List[dict], diff: str, st: dict, history: List[dict], op
         "Write in the language of the HISTORY subjects (Turkish history, Turkish subjects; English, English), with "
         "the verb form they use. Keep types like feat/fix and code identifiers as they are."
         if history else "Write in English.")
+    files, changed = len(found), _changed_lines(diff)
+    if files <= SMALL_WORK[0] and changed <= SMALL_WORK[1]:
+        size = "This is a small piece of work (%d files, %d lines): expect 1 commit; 2 or 3 only if it holds clearly " \
+               "unrelated work." % (files, changed)
+    elif files <= MEDIUM_WORK[0] and changed <= MEDIUM_WORK[1]:
+        size = "This is a medium piece of work (%d files, %d lines): usually 1 to 3 commits." % (files, changed)
+    else:
+        size = "This is a large piece of work (%d files, %d lines): usually 2 to 5 commits." % (files, changed)
+    scoped = conv in ("conventional", "none")
     rules = [
-        "One commit per purpose: a feature with its tests and docs is one commit; a fix, a refactor, a dependency "
-        "change, formatting, CI or tooling each get their own. Most answers are 1 to 5 commits; never one per file.",
+        "A commit is one piece of work as a reviewer would name it, not one folder and not one file. The same "
+        "change made in several modules (a tool switched, a rename, a migration, a setting applied everywhere) is "
+        "ONE commit, however many modules it touches.",
+        "Start from one commit for everything. Split only where part of the work has another purpose that someone "
+        "would review or revert on its own: an unrelated fix, a separate feature, a dependency change. Tests, docs "
+        "and configuration that belong to a change go in its commit. When unsure, keep it together.",
+        "If two of your subjects would differ only in the scope or in a word or two, they are the same work: make "
+        "them one commit." + (" Wrong: `chore(mail): move Go commands to the wrapper`, `chore(imap): move Go "
+                              "commands to the wrapper`, `chore(support): move Go test to the wrapper`. Right: "
+                              "`chore(mail, imap, support): move Go commands to the wrapper`." if scoped else ""),
+        size + " Never more than %d." % MAX_COMMITS,
         "Every path under CHANGES goes into exactly one commit, spelled exactly as listed. A file with two purposes "
         "goes with its main one.",
         "Order the commits so that each one stands on its own.",
         "Subject: %s About the effect, in a few words; aim for 50 characters, never more than %d; no period at the "
         "end; no file lists." % (fmt, SUBJECT_MAX),
+    ]
+    if scoped:
+        rules.append("Scope: a commit inside one module carries that module. One that spans a few lists them, "
+                     "`type(a, b, c): ...`, while the subject still fits; otherwise their common parent, or no scope.")
+    rules += [
         lang,
         "`body` is [] for almost every commit. Use at most 3 short lines only for a breaking change "
         "(`BREAKING CHANGE: ...`), a reason nobody could guess, or a step to take after pulling.",
@@ -1113,6 +1141,91 @@ def build_prompt(found: List[dict], diff: str, st: dict, history: List[dict], op
     for u in found:
         lines += ["=== " + u["path"], shown.get(u["path"], "[no content change]")]
     return "\n".join(lines) + "\n"
+
+
+def _changed_lines(diff: str) -> int:
+    return sum(1 for ln in diff.splitlines()
+               if ln[:1] in "+-" and not ln.startswith(("+++ ", "--- ")))
+
+
+def _words(text: str) -> set:
+    return set(re.findall(r"\w+", text.lower()))
+
+
+def _same_work(a: str, b: str) -> bool:
+    """Two descriptions that say the same thing: equal, or all but a word or two in common."""
+    wa, wb = _words(a), _words(b)
+    if not wa or not wb:
+        return False
+    if wa == wb:
+        return True
+    shared = len(wa & wb)
+    return shared >= 3 and shared / len(wa | wb) >= SAME_WORK
+
+
+def _one_job(a: dict, b: dict) -> bool:
+    """The same words are the same job. Nearly the same words are the same job only when the
+    two commits sit in different modules: `chore(imap): move Go commands to the wrapper` and
+    `chore(support): move Go test to the wrapper` are one migration, while `feat(api): add the
+    user endpoint` and `feat(api): add the order endpoint` are two features."""
+    if _words(a["_desc"]) == _words(b["_desc"]):
+        return True
+    ma, mb = a["_m"], b["_m"]
+    if not ma or not mb or ma.group("type") != mb.group("type"):
+        return False
+    sa, sb = ma.group("scope"), mb.group("scope")
+    return bool(sa and sb and sa != sb) and _same_work(a["_desc"], b["_desc"])
+
+
+def _scoped_subject(kind: str, bang: str, scopes: List[str], desc: str) -> str:
+    """`type(a, b): desc` with every scope when that fits, else their parents, else no scope."""
+    parents = list(dict.fromkeys(s.split("/")[0] for s in scopes))
+    for cand in (scopes, parents):
+        if cand and len(cand) <= MAX_SCOPES:
+            subject = "%s(%s)%s: %s" % (kind, ", ".join(cand), bang, desc)
+            if len(subject) <= SUBJECT_MAX:
+                return subject
+    return "%s%s: %s" % (kind, bang, desc)
+
+
+def consolidate(commits: List[dict]) -> List[dict]:
+    """Merge commits that are one piece of work cut up by module. The model is told not to do
+    this; a small model does it anyway, so the rule is enforced here. A merged commit keeps the
+    place of its first part and the wording of its largest, and lists the scopes of all."""
+    groups: List[List[dict]] = []
+    for c in commits:
+        m = CONVENTIONAL.match(c["subject"])
+        c = dict(c, _m=m, _desc=m.group("desc") if m else c["subject"])
+        for g in groups:
+            first = g[0]
+            if bool(m) != bool(first["_m"]):
+                continue
+            if m and (m.group("bang") or "") != (first["_m"].group("bang") or ""):
+                continue
+            if not any(_one_job(c, x) for x in g):
+                continue
+            body = list(dict.fromkeys(ln for x in g + [c] for ln in x["body"].splitlines() if ln.strip()))
+            if len(body) > BODY_MAX_LINES:
+                continue
+            g.append(c)
+            break
+        else:
+            groups.append([c])
+    result = []
+    for g in groups:
+        if len(g) == 1:
+            result.append({k: v for k, v in g[0].items() if not k.startswith("_")})
+            continue
+        lead = max(g, key=lambda x: len(x["paths"]))
+        subject = lead["subject"]
+        if lead["_m"]:
+            scopes = list(dict.fromkeys(s.strip() for x in g if x["_m"].group("scope")
+                                        for s in x["_m"].group("scope").split(",") if s.strip()))
+            subject = _scoped_subject(lead["_m"].group("type"), lead["_m"].group("bang") or "", scopes, lead["_desc"])
+        body = "\n".join(dict.fromkeys(ln for x in g for ln in x["body"].splitlines() if ln.strip()))
+        result.append({"subject": subject, "body": body, "paths": [p for x in g for p in x["paths"]],
+                       "merged": len(g)})
+    return result
 
 
 def parse_plan(text: str) -> Optional[dict]:
@@ -1168,6 +1281,8 @@ def resolve_plan(plan: Optional[dict], found: List[dict], who: Optional[dict], o
         problems.append("these paths are in no commit: %s" % ", ".join(missing[:20]))
     if not commits:
         problems.append("the plan has no commits")
+    if not problems:
+        commits = consolidate(commits)
     if one and len(commits) != 1:
         problems.append("exactly one commit was asked for, the plan has %d" % len(commits))
     return commits, problems
@@ -1296,6 +1411,7 @@ def cmd_run(args) -> dict:
         binary = find_cli(host) if host in HOSTS else None
         why = "no provider was named (--in)" if not host else "the %s CLI is not on PATH" % host if not binary else ""
         commits, problems = [], [why] if why else []
+        spare: List[dict] = []
         if binary:
             model = args.model or os.environ.get("GITCOMMIT_MODEL") or pick_model(host, list_models(host, binary))
             used = "%s:%s" % (host, model or "default")
@@ -1306,10 +1422,18 @@ def cmd_run(args) -> dict:
                     problems = ["%s gave no answer: %s" % (used, err)]
                     break
                 commits, problems = resolve_plan(parse_plan(answer), found, who, one)
+                if not problems and len(commits) > MAX_COMMITS and attempt == 1:
+                    # Too many is not wrong enough to refuse, so it is sent back once and the
+                    # second answer is taken as it comes (this one, if the second is unusable).
+                    spare = commits
+                    problems = ["%d commits is too many for this work: merge the ones that serve the same purpose, "
+                                "whatever module they touch; at most %d" % (len(commits), MAX_COMMITS)]
                 if not problems:
                     break
                 ask = prompt + "\nYour previous answer was rejected:\n" + "\n".join("- " + x for x in problems[:12]) \
                     + "\nAnswer again with the corrected JSON object.\n"
+        if problems and spare:
+            commits, problems = spare, []
         if problems:
             fd, path = tempfile.mkstemp(prefix="gitcommit-plan-", suffix=".md")
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
@@ -1321,7 +1445,8 @@ def cmd_run(args) -> dict:
     if args.dry_run:
         lines = note + ["Plan: %s" % _n(len(commits))]
         for c in commits:
-            lines.append("%s  [%s]" % (c["subject"], ", ".join(c["paths"][:6]) + (" …" if len(c["paths"]) > 6 else "")))
+            lines.append("%s  [%s]%s" % (c["subject"], ", ".join(c["paths"][:6]) + (" …" if len(c["paths"]) > 6 else ""),
+                                         "  (%d parts merged)" % c["merged"] if c.get("merged") else ""))
         return {"ok": True, "status": "plan", "code": 0, "model": used, "plan": commits, "report": _report(lines, left)}
     r = carry_out(repo, commits, left, since, st, args)
     return dict(r, model=used, report="\n".join(note + [r["report"]]))

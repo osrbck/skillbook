@@ -568,6 +568,91 @@ class RunTest(Base):
         self.assertEqual(sorted(self.git("show", "--name-only", "--format=", "HEAD~1").splitlines()),
                          ["src/cart.py", "src/cart_test.py"])
 
+    def test_one_job_cut_up_by_module_becomes_one_commit(self):
+        for path in ("destek/Makefile", "eposta/Makefile", "infra/imap/Makefile", "infra/smtp/Makefile", "docs/plan.md"):
+            self.write(path)
+        desc = "Go komutları depo sarmalayıcısına geçirildi"
+        plan = {"commits": [
+            {"subject": "docs(eposta): zamanlanmış iş imzası plana işlendi", "body": [], "paths": ["docs/plan.md"]},
+            {"subject": "chore(infra/smtp): " + desc, "body": [], "paths": ["infra/smtp/Makefile"]},
+            {"subject": "chore(infra/imap): " + desc, "body": [], "paths": ["infra/imap/Makefile"]},
+            {"subject": "chore(eposta): " + desc, "body": [], "paths": ["eposta/Makefile"]},
+            {"subject": "chore(destek): Go testi depo sarmalayıcısına geçirildi", "body": [], "paths": ["destek/Makefile"]}]}
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", raw=True, env=self.answers(plan))
+        self.assertEqual(code, 0, text)
+        self.assertEqual(text.splitlines()[0], "Committed 2 commits (not pushed)")
+        subject = self.log()[0]
+        self.assertEqual(subject, "chore: " + desc, "the scopes do not fit in 72 characters, so there are none")
+        self.assertLessEqual(len(subject), helper.SUBJECT_MAX)
+        self.assertEqual(sorted(self.git("show", "--name-only", "--format=", "HEAD").splitlines()),
+                         ["destek/Makefile", "eposta/Makefile", "infra/imap/Makefile", "infra/smtp/Makefile"])
+        self.assertEqual(len(self.calls()), 1, "merging costs no second call")
+
+    def test_what_counts_as_the_same_work(self):
+        def merged(*subjects):
+            return [c["subject"] for c in helper.consolidate(
+                [{"subject": s, "body": "", "paths": ["f%d" % i]} for i, s in enumerate(subjects)])]
+        self.assertEqual(merged("fix(cart): round totals per line", "fix(order): round totals per line"),
+                         ["fix(cart, order): round totals per line"])
+        self.assertEqual(merged("chore(a/x): bump the linter", "chore(a/y): bump the linter", "chore(b): bump the linter",
+                                "chore(c): bump the linter", "chore(d): bump the linter", "chore(e): bump the linter"),
+                         ["chore: bump the linter"], "too many scopes: none")
+        self.assertEqual(merged("Update the build script", "update the build script"), ["Update the build script"])
+        self.assertEqual(merged("chore(imap): move Go commands to the wrapper", "chore(support): move Go test to the wrapper"),
+                         ["chore(imap, support): move Go commands to the wrapper"])
+        for apart in (("feat(api): add the user endpoint", "feat(api): add the order endpoint"),
+                      ("docs: update the README", "docs: update the changelog"),
+                      ("feat: add the user endpoint to the API", "feat: add the order endpoint to the API"),
+                      ("fix(cart): round totals per line", "feat(cart): round totals per line shown"),
+                      ("feat!: drop the v1 API routes", "feat: drop the v1 API routes"),
+                      ("fix: handle empty carts", "refactor: split the cart module")):
+            self.assertEqual(merged(*apart), list(apart))
+
+    def test_too_many_commits_are_sent_back_once_and_then_taken(self):
+        names = ["mod%d/a.py" % i for i in range(8)]
+        for n in names:
+            self.write(n)
+        subjects = ["feat(mod0): add login", "fix(mod1): stop the crash on empty input", "docs(mod2): explain setup",
+                    "test(mod3): cover the parser", "build(mod4): pin the compiler", "ci(mod5): cache dependencies",
+                    "perf(mod6): index the lookup table", "refactor(mod7): split the router"]
+        many = {"commits": [{"subject": s, "body": [], "paths": [n]} for s, n in zip(subjects, names)]}
+        few = {"commits": [{"subject": "feat: add login and its tooling", "body": [], "paths": names}]}
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", raw=True, env=self.answers(many, few))
+        self.assertEqual(code, 0, text)
+        self.assertEqual(text.splitlines()[0], "Committed 1 commit (not pushed)")
+        calls = self.calls()
+        self.assertEqual(len(calls), 2)
+        self.assertIn("8 commits is too many", calls[1]["prompt"])
+
+    def test_a_second_answer_that_is_still_long_is_not_refused(self):
+        names = ["mod%d/a.py" % i for i in range(8)]
+        for n in names:
+            self.write(n)
+        subjects = ["feat(mod0): add login", "fix(mod1): stop the crash on empty input", "docs(mod2): explain setup",
+                    "test(mod3): cover the parser", "build(mod4): pin the compiler", "ci(mod5): cache dependencies",
+                    "perf(mod6): index the lookup table", "refactor(mod7): split the router"]
+        many = {"commits": [{"subject": s, "body": [], "paths": [n]} for s, n in zip(subjects, names)]}
+        code, text = self.run_cli("run", "--host", "claude", "--no-push", raw=True, env=self.answers(many, "not json"))
+        self.assertEqual(code, 0, text)
+        self.assertEqual(text.splitlines()[0], "Committed 8 commits (not pushed)")
+
+    def test_the_prompt_sizes_the_work_and_asks_for_one_job_one_commit(self):
+        self.write("src/cart.py", "total = 1\n")
+        self.run_cli("run", "--host", "claude", "--no-push", raw=True)
+        prompt = self.calls()[0]["prompt"]
+        for part in ("not one folder and not one file", "small piece of work (1 files, 1 lines): expect 1 commit",
+                     "Never more than 6", "`type(a, b, c): ...`"):
+            self.assertIn(part, prompt)
+
+    def test_a_history_with_several_scopes_is_still_conventional(self):
+        for i, s in enumerate(["chore(mail, imap): move to the wrapper", "feat(cart): add coupons", "fix: round totals"]):
+            self.write("h%d.txt" % i)
+            self.git("add", "-A")
+            self.git("commit", "-q", "-m", s)
+        st = helper.style(self.repo, "main")
+        self.assertEqual(st["convention"], "conventional")
+        self.assertIn("mail, imap", st["scopes"])
+
     def test_the_small_current_model_of_each_provider(self):
         pick = helper.pick_model
         ids = lambda *names: [{"id": n} for n in names]  # noqa: E731

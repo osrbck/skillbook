@@ -17,6 +17,10 @@ context to save tokens, and do not add words to `SKILL.md` that the helper could
 - It must stay safe to call: no force, no `--no-verify`, no history rewriting, no change to git
   configuration or remotes, no network request except `git push`.
 - A new rule for messages goes in `message_problems`, so that `commit` and `check` agree.
+- How work is grouped is said once in `build_prompt` and enforced in `consolidate`. A small model
+  follows the first most of the time, not always; what must hold every time belongs in the
+  second. `consolidate` must never merge two things a reviewer would want apart: when in doubt
+  it leaves them, and every new case gets a line in `test_what_counts_as_the_same_work`.
 - A new kind of flag needs a low false-positive rate. A file left out by mistake is reported and
   can be included; a secret that got pushed cannot be taken back. Name and size rules apply only
   to files git does not track yet.

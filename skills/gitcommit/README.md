@@ -26,9 +26,17 @@ Works in **Claude Code, Codex, Antigravity and Kiro**.
 
 - **The whole working tree, whoever changed it.** Everything that differs from the last commit
   is in scope: work from this session, an earlier one, another agent, or typed by hand.
-- **One purpose per commit.** A feature goes in with its tests and docs; a fix, a refactor, a
-  dependency bump or a formatting pass each get their own. Work that piled up over several
-  sessions is split into the commits it should have been.
+- **One piece of work per commit, not one folder.** It starts from a single commit and splits
+  only where part of the work has a purpose of its own: an unrelated fix, a separate feature, a
+  dependency bump. A feature goes in with its tests and docs. The same change made in several
+  modules is one commit that names them, `chore(mail, imap, support): …`, or no scope when the
+  list would not fit. The size of the change sets the expectation: small work is one commit,
+  and a plan of more than six is sent back once.
+- **A job cut up by module is put back together.** If the model still answers with
+  `chore(mail): move Go commands to the wrapper`, `chore(imap): move Go commands to the wrapper`
+  and `chore(support): move Go test to the wrapper`, the helper merges them into one commit
+  before anything is committed. That costs no extra call. Same words are always merged; nearly
+  the same words only across different modules, so two features in one module stay apart.
 - **Your convention and your language.** It reads the recent history and continues it:
   Conventional Commits with your types and scopes, gitmoji, ticket prefixes or plain sentences;
   Turkish history gets Turkish messages, English gets English. A new repository gets

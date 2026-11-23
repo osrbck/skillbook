@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 ## [Unreleased]
 
 ### Changed
+- Grouping is by piece of work, not by folder. The plan starts from one commit and splits only
+  where part of the work has a purpose of its own; the same change made in several modules is
+  one commit. The prompt tells the model how large the change is (files and lines) and what
+  that usually means: one commit for small work, 1 to 3 for medium, 2 to 5 for large
+- Commits that are one job cut up by module are merged by the helper before anything is
+  committed, at no extra model call: the same description always, nearly the same description
+  when the scopes differ. The merged subject lists the scopes (`chore(mail, imap): …`), falls
+  back to their parents, and drops the scope when it would pass 72 characters
+- A plan of more than six commits is sent back to the model once; its second answer is taken
+- A scope that lists several modules (`type(a, b): …`) is read as Conventional Commits when the
+  history is studied
 - The provider is now named with `--in` (`run --in kiro`). Kiro's terminal guard takes a command
   that contains `--host` for one that starts a server and refuses it, which cost the calling
   agent several extra turns. `--host` still works
