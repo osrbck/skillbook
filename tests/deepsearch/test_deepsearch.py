@@ -108,6 +108,14 @@ class Roster(Base):
         self.assertEqual(tiers["kiro"]["top"]["model"], "claude-opus-5.5", "newest version, not a preview")
         self.assertEqual(tiers["kiro"]["fast"]["model"], "claude-sonnet-5.5")
 
+    def test_agy_prefers_neon_where_listed(self):
+        env = {"FAKE_AGY_MODELS": "gemini-4-neon-high,gemini-4-neon-medium,gemini-4-argon-high,"
+                                  "gemini-4-argon-medium,gemini-pro-orchestrator-neon,gemini-3.8-flash-high"}
+        code, d = self.run_cli("detect", env=env)
+        agy = next(p for p in d["providers"] if p["name"] == "agy")["tiers"]
+        self.assertEqual(agy["top"], {"model": "gemini-4-neon-high"})
+        self.assertEqual(agy["deep"], {"model": "gemini-4-neon-medium"}, "never an Orchestrator agent")
+
     def test_a_missing_model_is_dropped_and_a_smaller_one_stands_in_with_full_effort(self):
         code, d = self.run_cli("detect", env={"FAKE_CODEX_MODELS": "gpt-6.1-sol,gpt-6-luna"})
         codex = next(p for p in d["providers"] if p["name"] == "codex")

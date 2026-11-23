@@ -40,8 +40,8 @@ research/2026-11-13-is-sodium-ion-ready-to-replace-lfp-in-grid-storage/
   | Degree | Team | Researchers run on | Reviewer runs on | Cycles |
   |---|---|---|---|---|
   | `low` | 2 researchers + 1 reviewer; you write | fast models (Sonnet, GPT-6.1 Sol, Gemini Flash) | the strongest | 1 |
-  | `medium` | 3 researchers + 1 reviewer + 1 writer | thorough models (Opus, GPT-6 Astra, Gemini 4 Argon) | the strongest | up to 2 |
-  | `hard` | 3 researchers + 1 reviewer + a second panel + 1 writer | the strongest (Fable high, Astra high, Argon high) | the strongest | up to 3 |
+  | `medium` | 3 researchers + 1 reviewer + 1 writer | thorough models (Opus, GPT-6 Astra, Gemini 4 Neon or Argon) | the strongest | up to 2 |
+  | `hard` | 3 researchers + 1 reviewer + a second panel + 1 writer | the strongest (Fable high, Astra high, Neon or Argon high) | the strongest | up to 3 |
 
 - **The question sets the head count.** The degree sets the models and the depth; the
   orchestrator counts the independent parts of the question and takes one researcher for each,

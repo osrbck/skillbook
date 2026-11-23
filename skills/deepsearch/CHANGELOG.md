@@ -4,6 +4,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 
 ## [Unreleased]
 
+### Changed
+- Antigravity's `top` and `deep` tiers use Gemini 4 Neon where `agy models` lists it, ahead of
+  Argon (Karbon still comes first for `top`); Kiro's `top` tier also takes Neon before Argon
+
 ## [0.1.0] - 2026-11-13
 
 ### Added

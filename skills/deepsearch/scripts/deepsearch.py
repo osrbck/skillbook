@@ -95,14 +95,15 @@ PROVIDERS: Dict[str, dict] = {
         "tiers": {"top": {"model": "gemini-4-argon", "effort": "high"},
                   "deep": {"model": "gemini-4-argon", "effort": "medium"},
                   "fast": {"model": "gemini-3.8-flash", "effort": "high"}},
-        "match": {"top": (("karbon",), ("carbon",), ("argon",)), "deep": (("argon",), ("3.1-pro",)),
+        "match": {"top": (("karbon",), ("carbon",), ("neon",), ("argon",)),
+                  "deep": (("neon",), ("argon",), ("3.1-pro",)),
                   "fast": (("3.1-pro",), ("flash",))},
         "never": ("lite", "orchestrator"),
     },
     "kiro": {
         "label": "Kiro", "bins": ("kiro-cli",), "sign_in": "kiro-cli login",
         "tiers": {"top": None, "deep": None, "fast": {"model": "auto"}},
-        "match": {"top": (("fable",), ("mythos",), ("opus",), ("astra",), ("karbon",), ("argon",)),
+        "match": {"top": (("fable",), ("mythos",), ("opus",), ("astra",), ("karbon",), ("neon",), ("argon",)),
                   "deep": (("opus",), ("sonnet",)), "fast": (("sonnet",), ("terra",))},
     },
 }

@@ -41,8 +41,8 @@ research/2026-11-13-sodyum-iyon-sebeke-depolamada-lfp-nin-yerini-almaya/
   | Derece | Ekip | Araştırmacıların modeli | Hakemin modeli | Tur |
   |---|---|---|---|---|
   | `low` | 2 araştırmacı + 1 hakem; belgeyi sen yazarsın | hızlı modeller (Sonnet, GPT-6.1 Sol, Gemini Flash) | en güçlü | 1 |
-  | `medium` | 3 araştırmacı + 1 hakem + 1 yazar | derin modeller (Opus, GPT-6 Astra, Gemini 4 Argon) | en güçlü | en fazla 2 |
-  | `hard` | 3 araştırmacı + 1 hakem + ikinci panel + 1 yazar | en güçlüler (Fable high, Astra high, Argon high) | en güçlü | en fazla 3 |
+  | `medium` | 3 araştırmacı + 1 hakem + 1 yazar | derin modeller (Opus, GPT-6 Astra, Gemini 4 Neon ya da Argon) | en güçlü | en fazla 2 |
+  | `hard` | 3 araştırmacı + 1 hakem + ikinci panel + 1 yazar | en güçlüler (Fable high, Astra high, Neon ya da Argon high) | en güçlü | en fazla 3 |
 
 - **Kişi sayısını soru belirler.** Derece modelleri ve derinliği belirler; orkestratör sorunun
   bağımsız parçalarını sayar ve her biri için bir araştırmacı alır: birden (tek odaklı soru)
