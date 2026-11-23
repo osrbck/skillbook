@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
 ## [Unreleased]
 
 ### Changed
+- Antigravity uses Gemini 4 Neon where `agy models` lists it: S2 (medium effort), S3 and S4
+  (high). Karbon still takes S4 where an account has it, and Argon stays the fallback. The
+  Orchestrator entries in the listing are never picked, and Neon counts as a conducting model
 - Antigravity's build tier (S2) runs on Gemini 4 Argon at medium effort. Gemini 3.1 Pro left the
   model list on individual plans in October 2026; accounts that lack Argon still use 3.1 Pro, and
   a Pro or Flash stand-in gets its high-effort variant
@@ -15,6 +18,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · [Semantic Ve
   it. `--host` still works
 
 ### Fixed
+- A tier that asked for `high` effort could get a model's `xhigh` variant: the slug was matched
+  on its ending without the dash
 - A tier that lost its model once stayed empty for good: `setup` kept the saved entry and `verify`
   only tested tiers that still had a model. A roster carried over from an older version, or an
   account that gained a model later, therefore kept reporting that model as "not available on

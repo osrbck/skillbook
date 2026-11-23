@@ -133,9 +133,9 @@ kurallar: [`references/architecture/`](skills/agentack/references/architecture/)
 
 | Seviye | Amaç | Roller | Claude | Codex | Antigravity | Kiro | Cursor |
 |---|---|---|---|---|---|---|---|
-| **S4** | geri dönüşü pahalı kararlar | decider | Fable | GPT-6 Astra (yüksek efor) | Gemini 4 Karbon, yoksa Argon | adını verdiğin model | adını verdiğin model |
-| **S3** | plan, tasarım ve kontrol | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, yoksa Sol (yüksek efor) | Gemini 4 Argon, yoksa 3.1 Pro | adını verdiğin model | adını verdiğin model |
-| **S2** | inşa | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (orta efor) | Gemini 4 Argon (orta efor) | Auto | Composer |
+| **S4** | geri dönüşü pahalı kararlar | decider | Fable | GPT-6 Astra (yüksek efor) | Gemini 4 Karbon, yoksa Neon, yoksa Argon | adını verdiğin model | adını verdiğin model |
+| **S3** | plan, tasarım ve kontrol | conductor, architect, backend-architect, designer, reviewer | Opus | GPT-6 Astra, yoksa Sol (yüksek efor) | Gemini 4 Neon, yoksa Argon, yoksa 3.1 Pro | adını verdiğin model | adını verdiğin model |
+| **S2** | inşa | backend, frontend (be-/fe-/fs-&lt;stack&gt;), qa | Sonnet | GPT-6.1 Sol (orta efor) | Gemini 4 Neon, yoksa Argon (orta efor) | Auto | Composer |
 | **S1** | mekanik iş | scout, contract-guard | Haiku | GPT-6 Luna | Gemini 4 Hydrogen, yoksa 3.8 Flash | Auto | Auto |
 | | **conductor olabilir** | | evet | evet | evet | evet, adı belli Opus sınıfı bir modelde | hayır |
 

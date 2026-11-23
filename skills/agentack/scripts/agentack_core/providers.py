@@ -314,7 +314,7 @@ class Provider:
             hits = [m for m in models if all(w in m.lower() for w in words) and m not in exclude
                     and not any(n in m.lower() for n in self.never)]
             if hits:
-                preferred = [m for m in hits if effort and m.lower().endswith(effort)]
+                preferred = [m for m in hits if effort and m.lower().endswith("-" + effort)]  # "-high", not "-xhigh"
                 return sorted(preferred or hits)[-1]
         return None
 
@@ -503,21 +503,24 @@ class Antigravity(Provider):
     bins = ("agy",)
     conductor = True               # as a skill in the Antigravity app, IDE or CLI
     image = True                   # Gemini image models through the agent
-    conductor_keywords = ("karbon", "carbon", "argon", "3.1-pro", "gemini-pro")
+    conductor_keywords = ("karbon", "carbon", "neon", "argon", "3.1-pro", "gemini-pro")
     # Gemini is used where it is strong: analysis, review, long context and anything visual run on
-    # Argon (Karbon where the plan has it). It trails on headless coding loops, so build runs on
-    # Argon at medium effort (3.1 Pro left individual plans in October 2026), mechanical work on
-    # Gemini 4 Hydrogen where listed, else 3.8 Flash, and both tiers are rated as a last resort.
-    # Flash-Lite class models are never used.
+    # Gemini 4 Neon where the plan lists it (released 2026-11-18), else Argon; Karbon decides where
+    # the plan has it. Build runs on Neon, else Argon, at medium effort (3.1 Pro left individual
+    # plans in October 2026), mechanical work on Gemini 4 Hydrogen where listed, else 3.8 Flash,
+    # and both tiers are rated as a last resort. Flash-Lite class models and the Orchestrator
+    # agents in `agy models` are never used.
     tiers = {"S4": {"model": "gemini-4-argon", "effort": "high"},
              "S3": {"model": "gemini-4-argon", "effort": "high"},
              "S2": {"model": "gemini-4-argon", "effort": "medium"},
              "S1": {"model": "gemini-3.8-flash", "effort": "medium"}}
-    match = {"S4": (("karbon",), ("carbon",), ("argon",)), "S3": (("argon",), ("3.1-pro",)),
-             # build runs on Argon at medium; a stand-in for it gets the high-effort variant
-             "S2": (("argon",), ("3.1-pro", "high"), ("3.1-pro",), ("3.8-flash", "high"), ("3.8-flash",)),
+    match = {"S4": (("karbon",), ("carbon",), ("neon",), ("argon",)),
+             "S3": (("neon",), ("argon",), ("3.1-pro",)),
+             # build runs on Neon or Argon at medium; a Pro or Flash stand-in gets the high-effort variant
+             "S2": (("neon",), ("argon",), ("3.1-pro", "high"), ("3.1-pro",), ("3.8-flash", "high"),
+                    ("3.8-flash",)),
              "S1": (("hydrogen",), ("3.8-flash",), ("flash",))}
-    never = ("lite",)
+    never = ("lite", "orchestrator")
     ratings = {"decide": 4, "plan": 4, "review": 4, "visual": 5, "backend": 2, "frontend": 2,
                "test": 2, "mechanical": 2}
     notes = ("Uses your existing `agy` login. Model slugs are read from `agy models`; usage is read "
@@ -638,7 +641,7 @@ class Kiro(Provider):
     conductor = True               # as a skill in the Kiro IDE or CLI
     # Kiro offers other vendors' models, so a conducting session is judged by the model's class
     # and never by "auto", which hides which model is behind it.
-    conductor_keywords = ("opus", "fable", "mythos", "astra", "argon", "karbon")
+    conductor_keywords = ("opus", "fable", "mythos", "astra", "neon", "argon", "karbon")
     conductor_hint = "a named Opus-class model, not Auto"
     tiers = {"S4": None, "S3": None, "S2": {"model": "auto"}, "S1": {"model": "auto"}}
     notes = ("Uses your `kiro-cli login` session, or KIRO_API_KEY where set. Monthly credit usage is "

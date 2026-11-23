@@ -149,6 +149,26 @@ class SetupTest(Base):
         code, d = self.run_cli("setup", "--providers", "agy", env=env)
         self.assertEqual(self.primary(d, "qa"), "agy:gemini-3.1-pro-high")
 
+    # what `agy models` lists on a Pro account since Gemini 4 Neon (2026-11-18)
+    NEON = ("gemini-4-neon-high,gemini-4-neon-xhigh,gemini-4-neon-medium,gemini-4-neon-low,"
+            "gemini-4-argon-medium,gemini-4-argon-high,gemini-4-argon-low,gemini-4-hydrogen-medium,"
+            "gemini-pro-orchestrator-neon,gemini-pro-orchestrator-g1-pro,gemini-3.8-flash-medium")
+
+    def test_agy_runs_s2_to_s4_on_neon_where_listed(self):
+        code, d = self.run_cli("setup", "--providers", "agy", env={"FAKE_AGY_MODELS": self.NEON})
+        self.assertEqual(self.primary(d, "decider"), "agy:gemini-4-neon-high")
+        self.assertEqual(self.primary(d, "reviewer"), "agy:gemini-4-neon-high")
+        self.assertEqual(self.primary(d, "qa"), "agy:gemini-4-neon-medium")
+        self.assertEqual(self.primary(d, "scout"), "agy:gemini-4-hydrogen-medium", "Neon is not mechanical")
+        self.assertFalse(any("orchestrator" in (r["primary"] or "") for r in d["roster"]),
+                         "the Orchestrator agents are never used")
+
+    def test_agy_karbon_still_decides_over_neon(self):
+        env = {"FAKE_AGY_MODELS": "gemini-4-karbon-high," + self.NEON}
+        code, d = self.run_cli("setup", "--providers", "agy", env=env)
+        self.assertEqual(self.primary(d, "decider"), "agy:gemini-4-karbon-high")
+        self.assertEqual(self.primary(d, "architect"), "agy:gemini-4-neon-high")
+
     KARBON = "gemini-4-karbon-high,gemini-4-argon-high,gemini-3.1-pro-high,gemini-3.8-flash-medium,gemini-3.5-flash-lite"
 
     def test_agy_prefers_karbon_and_falls_back_to_argon_when_it_is_locked(self):

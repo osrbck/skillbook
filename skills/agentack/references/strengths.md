@@ -66,7 +66,7 @@ Each one below names what it rests on. "Inferred" means there is no direct bench
 - mechanical 3: Luna is cheap and scores well on DeepSWE (66.6%) but low on Terminal-Bench 4.0
   (16.4%): fine for rule-following batches, not for open-ended loops.
 
-**Antigravity** (Gemini 4 Karbon · Argon · Hydrogen · 3.8 Flash)
+**Antigravity** (Gemini 4 Karbon · Neon · Argon · Hydrogen · 3.8 Flash)
 - visual 5: native image, video and PDF input; Argon places near the top of SWE-bench Multimodal.
 - decide 4, plan 4, review 4: Argon leads several reasoning and analysis boards (Vals index,
   DeepSWE 77.9%) and handles very long inputs well. Review is inferred from that.
@@ -78,6 +78,10 @@ Each one below names what it rests on. "Inferred" means there is no direct bench
   listed, has no independent benchmark yet. It answered a small read-and-compute check correctly
   and faster than 3.8 Flash on 2026-11-16, so the rating stays at 2 until one appears.
 - Flash-Lite class models are never used.
+- Neon (2026-11-18) takes S2 to S3, and S4 where there is no Karbon. It leads the Artificial
+  Analysis Coding Agent Index (run through the Antigravity CLI) and scores 65.2% on
+  Terminal-Bench 4.1. The ratings above are not raised yet: they wait for a second independent
+  review of the Antigravity harness.
 - Karbon (also written Carbon) is limited to selected partners at the time of review. Where an
   account has it, it takes the S4 seat.
 

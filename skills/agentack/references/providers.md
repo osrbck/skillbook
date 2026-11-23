@@ -19,7 +19,7 @@ selected provider.
 |---|---|---|---|---|---|
 | `claude` Claude Code | fable | opus | sonnet | haiku | yes |
 | `codex` Codex | gpt-6-astra (high) | gpt-6-astra (medium), else gpt-6.1-sol (high) | gpt-6.1-sol (medium) | gpt-6-luna (low) | yes |
-| `agy` Antigravity | Gemini 4 Karbon, else Argon | Gemini 4 Argon, else 3.1 Pro | Gemini 4 Argon (medium), else 3.1 Pro | Gemini 4 Hydrogen, else 3.8 Flash | yes (app, IDE, CLI) |
+| `agy` Antigravity | Gemini 4 Karbon, else Neon, else Argon | Gemini 4 Neon, else Argon, else 3.1 Pro | Gemini 4 Neon, else Argon (medium), else 3.1 Pro | Gemini 4 Hydrogen, else 3.8 Flash | yes (app, IDE, CLI) |
 | `cursor` Cursor | — name one | — name one | Composer | Auto | no |
 | `kiro` Kiro | — name one | — name one | Auto | Auto | yes (IDE and CLI), on a named Opus-class model |
 
@@ -27,10 +27,12 @@ selected provider.
   with Opus. Decisions use high reasoning effort, planning and review medium. Sol builds. On an
   account without Astra (a ChatGPT login, for example) Sol at high effort stands in at S3 and is
   briefed step by step.
-- Antigravity is placed where Gemini is strong: Argon plans, reviews and reads anything visual,
-  and Karbon decides where an account has it (otherwise Argon does). Build runs on Argon at
-  medium effort, since 3.1 Pro left individual plans in October 2026 (accounts that lack Argon
-  still get 3.1 Pro). Mechanical work runs on Gemini 4 Hydrogen where it is listed, else 3.8
+- Antigravity is placed where Gemini is strong: Gemini 4 Neon (released 2026-11-18, on paid
+  plans) plans, reviews and reads anything visual, with Argon where an account does not list
+  Neon. Karbon decides where an account has it, otherwise Neon or Argon does. Build runs on Neon,
+  else Argon, at medium effort, since 3.1 Pro left individual plans in October 2026 (accounts that
+  lack both still get 3.1 Pro). The Orchestrator entries in `agy models` are agents, not models,
+  and are never used. Mechanical work runs on Gemini 4 Hydrogen where it is listed, else 3.8
   Flash. Flash-Lite class models are never used, and both tiers are rated a last resort: see
   `strengths.md`. Slugs are
   read from `agy models` during setup and matched by name.
